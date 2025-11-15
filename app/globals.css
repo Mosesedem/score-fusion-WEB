@@ -1,0 +1,390 @@
+@import "tailwindcss";
+/* @import "tw-animate-css"; */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Primary set to orange (light theme) */
+  --primary: oklch(0.65 0.18 49);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  /* HSL tuple for brand orange used by nav links */
+  --color-brand-orange: 24 95% 50%;
+}
+
+[data-theme="dark"] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Primary set to orange (dark theme - lighter for contrast) */
+  --primary: oklch(0.85 0.15 49);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  /* HSL tuple for brand orange used by nav links (slightly brighter) */
+  --color-brand-orange: 24 100% 60%;
+}
+
+/* Nav link utilities */
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.3s;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 0.125rem;
+  background-color: hsl(var(--color-brand-orange));
+  transition: all 0.3s ease-out;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+  width: 100%;
+}
+
+.nav-link:hover {
+  color: hsl(var(--color-foreground));
+}
+
+.nav-link.active {
+  color: hsl(var(--color-brand-orange));
+}
+
+.dropdown-content {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 0.2s ease-out;
+}
+
+.dropdown-content[data-state="open"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.mobile-menu-enter {
+  transform: translateX(100%);
+}
+
+.mobile-menu-enter-active {
+  transform: translateX(0);
+  transition: transform 0.3s ease-out;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Markdown Editor Styles */
+.w-md-editor {
+  @apply border-2 border-border rounded-md;
+  background-color: hsl(var(--background)) !important;
+}
+
+.w-md-editor-text-pre,
+.w-md-editor-text-pre > code,
+.w-md-editor-text-pre > .w-md-editor-text {
+  color: hsl(var(--foreground)) !important;
+  background-color: hsl(var(--background)) !important;
+}
+
+.w-md-editor-text-pre {
+  @apply font-mono;
+}
+
+.w-md-editor-bar {
+  background-color: hsl(var(--muted)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+.w-md-editor-bar svg {
+  fill: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-bar > button:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.w-md-editor-bar > button.active {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.w-md-editor-text {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-text:focus {
+  outline: none !important;
+}
+
+.w-md-editor-preview {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-preview h1,
+.w-md-editor-preview h2,
+.w-md-editor-preview h3,
+.w-md-editor-preview h4,
+.w-md-editor-preview h5,
+.w-md-editor-preview h6 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-preview p {
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-preview code {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.w-md-editor-preview pre {
+  background-color: hsl(var(--muted)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.w-md-editor-preview blockquote {
+  border-left-color: hsl(var(--primary)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.w-md-editor-preview a {
+  color: hsl(var(--primary)) !important;
+}
+
+.w-md-editor-preview table {
+  border-color: hsl(var(--border)) !important;
+}
+
+.w-md-editor-preview th,
+.w-md-editor-preview td {
+  border-color: hsl(var(--border)) !important;
+}
+
+.w-md-editor-preview img {
+  @apply rounded-lg shadow-md;
+}
+
+/* MDX Editor Styles - Professional markdown editor */
+.mdxeditor {
+  @apply border-2 border-border rounded-md;
+  background-color: hsl(var(--background)) !important;
+}
+
+.mdxeditor-toolbar {
+  background-color: hsl(var(--muted)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  @apply border-b;
+}
+
+.mdxeditor-toolbar button {
+  color: hsl(var(--foreground)) !important;
+  background-color: transparent !important;
+}
+
+.mdxeditor-toolbar button:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.mdxeditor-toolbar button:active,
+.mdxeditor-toolbar button[data-active="true"] {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.mdxeditor-root-contenteditable {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  min-height: 400px;
+}
+
+.mdxeditor-root-contenteditable:focus {
+  outline: none !important;
+}
+
+.mdxeditor-popup {
+  background-color: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+}
+
+.mdxeditor-popup input,
+.mdxeditor-popup textarea {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.mdxeditor-popup button {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.mdxeditor-popup button:hover {
+  background-color: hsl(var(--primary)) !important;
+  opacity: 0.9;
+}
+
+/* Code blocks in MDX editor */
+.mdxeditor-code-block {
+  background-color: hsl(var(--muted)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.mdxeditor-code-block pre {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Tables in MDX editor */
+.mdxeditor-table {
+  border-color: hsl(var(--border)) !important;
+}
+
+.mdxeditor-table th,
+.mdxeditor-table td {
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Links in MDX editor */
+.mdxeditor-link {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Blockquotes in MDX editor */
+.mdxeditor-quote {
+  border-left-color: hsl(var(--primary)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Headings in MDX editor */
+.mdxeditor-h1,
+.mdxeditor-h2,
+.mdxeditor-h3,
+.mdxeditor-h4,
+.mdxeditor-h5,
+.mdxeditor-h6 {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Lists in MDX editor */
+.mdxeditor-ul,
+.mdxeditor-ol {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Images in MDX editor */
+.mdxeditor-image {
+  @apply rounded-lg shadow-md;
+}

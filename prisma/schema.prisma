@@ -1,0 +1,692 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String?           @unique
+  // NextAuth optional fields
+  name             String?
+  image            String?
+  emailVerified    DateTime?
+  passwordHash     String?
+  displayName      String?
+  role             Role              @default(USER)
+  status           UserStatus        @default(ACTIVE)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  subscriptions    Subscription[]
+  vipTokens        VIPToken[]
+  bets             Bet[]
+  profile          Profile?
+  deletedAt        DateTime?
+  guest            Boolean           @default(false)
+  deviceTokens     String[] // FCM tokens for push notifications
+  lastLoginAt      DateTime?
+  loginAttempts    Int               @default(0)
+  lockedUntil      DateTime?
+  auditLogs        AdminAuditLog[]
+  analyticsEvents  AnalyticsEvent[]
+  // Referral system fields
+  referralCode     String?           @unique
+  referredBy       String? // User ID of referrer
+  referralLink     String? // Generated referral link
+  wallet           Wallet?
+  referredUsers    Referral[]        @relation("ReferredUsers")
+  referredByUser   Referral?         @relation("ReferredBy")
+  referralEarnings ReferralEarning[]
+  earnings         Earning[]
+  conversions      TokenConversion[]
+  withdrawals      Withdrawal[]
+  userAchievements UserAchievement[]
+  payments         Payment[]
+  passwordResets   PasswordReset[]
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
+model Profile {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country              String?
+  dob                  DateTime?
+  phone                String?
+  preferences          Json? // notification settings, theme, etc.
+  consents             Json? // GDPR consent tracking
+  selfExclusionUntil   DateTime?
+  depositLimits        Json? // daily/weekly/monthly limits
+  timeLimits           Json? // session time limits
+  realityCheckInterval Int? // minutes
+  marketingConsent     Boolean   @default(false)
+  analyticsConsent     Boolean   @default(true)
+
+  @@map("profiles")
+}
+
+model Tip {
+  id               String            @id @default(uuid())
+  title            String
+  content          String            @db.Text // markdown content for full analysis
+  summary          String? // short description for previews
+  odds             Decimal?
+  oddsSource       OddsSource        @default(manual)
+  sport            String
+  league           String?
+  matchId          String? // database match ID
+  externalMatchId  String? // external match identifier (legacy)
+  matchDate        DateTime?
+  match            Match?            @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  // Team relations for predictions
+  homeTeamId       String?
+  awayTeamId       String?
+  homeTeam         Team?             @relation("HomeTips", fields: [homeTeamId], references: [id], onDelete: SetNull)
+  awayTeam         Team?             @relation("AwayTips", fields: [awayTeamId], references: [id], onDelete: SetNull)
+  predictionType   PredictionType? // winner, over_under, both_teams_score, etc.
+  predictedOutcome String? // home_win, draw, away_win, over, under, yes, no, etc.
+  confidenceLevel  Int? // confidence level in prediction (1-100%)
+  // Ticket snapshots for morale boosting (up to 10)
+  ticketSnapshots  String[] // URLs to betting ticket images
+  publishAt        DateTime
+  isVIP            Boolean           @default(false)
+  category         TipCategory       @default(tip) // tip, update
+  featured         Boolean           @default(false)
+  authorId         String?
+  authorName       String?
+  status           PredictionStatus  @default(draft) // draft, scheduled, published, archived
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  attachments      String[] // URLs to images/files (legacy)
+  tags             String[]
+  viewCount        Int               @default(0)
+  successRate      Decimal? // calculated from actual results
+  result           PredictionResult? // won, lost, void, pending
+  bets             Bet[]
+  vipTokens        VIPToken[]
+  tipResult        TipResult?
+
+  @@index([status, publishAt])
+  @@index([isVIP, publishAt])
+  @@index([featured, publishAt])
+  @@index([sport, publishAt])
+  @@index([category, isVIP, publishAt])
+  @@map("tips")
+}
+
+// Enums for unified prediction system
+enum PredictionStatus {
+  draft
+  scheduled
+  published
+  archived
+}
+
+enum PredictionResult {
+  won
+  lost
+  void
+  pending
+}
+
+enum PredictionType {
+  winner
+  over_under
+  both_teams_score
+  correct_score
+  handicap
+  other
+}
+
+enum OddsSource {
+  manual
+  api_auto
+}
+
+enum TipCategory {
+  tip
+  update
+}
+
+model TipResult {
+  id        String   @id @default(uuid())
+  tipId     String   @unique
+  tip       Tip      @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  settledAt DateTime
+  outcome   String // won, lost, void
+  payout    Decimal?
+  createdAt DateTime @default(now())
+
+  @@map("tip_results")
+}
+
+model Bet {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipId     String?
+  tip       Tip?      @relation(fields: [tipId], references: [id], onDelete: SetNull)
+  amount    Decimal
+  stakeType String
+  odds      Decimal? // odds at time of placement
+  placedAt  DateTime  @default(now())
+  status    String    @default("pending") // pending, won, lost, void
+  payout    Decimal?
+  settledAt DateTime?
+
+  @@map("bets")
+}
+
+model Subscription {
+  id                   String    @id @default(uuid())
+  userId               String
+  stripeSubscriptionId String    @unique
+  stripeCustomerId     String
+  plan                 String // monthly, yearly, trial
+  status               String // active, past_due, canceled, incomplete
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  trialEnd             DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  canceledAt           DateTime?
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model VIPToken {
+  id        String    @id @default(uuid())
+  token     String    @unique @default(cuid()) // cryptographically random
+  userId    String?
+  tipId     String? // null = general access, specific tip ID = single tip access
+  type      String    @default("general") // general, single, bundle
+  quantity  Int       @default(1) // number of accesses allowed
+  used      Int       @default(0) // current usage count
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  batchId   String? // for tracking bulk generation
+  metadata  Json? // additional data like source campaign
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tip       Tip?      @relation(fields: [tipId], references: [id], onDelete: SetNull)
+
+  @@map("vip_tokens")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      String // tip_view, signup, subscription, etc.
+  payload   Json // event data
+  sessionId String? // for guest session tracking
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("analytics_events")
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String // create_tip, ban_user, etc.
+  resource  String? // tip_id, user_id, etc.
+  details   Json? // changes made, old values, etc.
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("admin_audit_logs")
+}
+
+model Consent {
+  id        String   @id @default(uuid())
+  userId    String?
+  type      String // analytics, marketing, essential
+  granted   Boolean
+  ipAddress String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("consents")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String?
+  title     String
+  body      String
+  type      String // push, in_app, email
+  status    String    @default("pending") // pending, sent, failed
+  data      Json? // additional notification data
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("notifications")
+}
+
+// Referral system models
+model Referral {
+  id           String            @id @default(uuid())
+  referrerId   String
+  referrer     User              @relation("ReferredUsers", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId   String            @unique
+  referred     User              @relation("ReferredBy", fields: [referredId], references: [id], onDelete: Cascade)
+  referralCode String
+  status       String            @default("pending") // pending, confirmed, completed, expired
+  completedAt  DateTime?
+  rewardAmount Decimal?          @default(0) // Reward amount for referrer
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  earnings     ReferralEarning[]
+
+  @@unique([referrerId, referredId])
+  @@map("referrals")
+}
+
+model ReferralEarning {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralId  String
+  referral    Referral  @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  type        String // signup, subscription, bet, conversion
+  amount      Decimal
+  currency    String    @default("USD")
+  status      String    @default("pending") // pending, confirmed, paid
+  tokens      Int       @default(0) // Tokens awarded
+  description String?
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  @@map("referral_earnings")
+}
+
+model Wallet {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Decimal  @default(0)
+  currency       String   @default("USD")
+  tokens         Int      @default(0) // Earning tokens
+  bonusTokens    Int      @default(0) // Bonus tokens from promotions
+  totalEarned    Decimal  @default(0)
+  totalWithdrawn Decimal  @default(0)
+  lastUpdated    DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@map("wallets")
+}
+
+model Earning {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // daily_login, tip_view, bet_placed, bet_won, referral_bonus, achievement
+  source      String? // Source of earning (tip_id, bet_id, etc.)
+  amount      Decimal
+  currency    String    @default("USD")
+  tokens      Int       @default(0)
+  status      String    @default("pending") // pending, confirmed, expired
+  description String?
+  metadata    Json? // Additional earning data
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  @@map("earnings")
+}
+
+model TokenConversion {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokensConverted Int // Number of tokens converted
+  tokenRate       Decimal // Conversion rate (tokens to currency)
+  amountEarned    Decimal // Amount earned from conversion
+  currency        String    @default("USD")
+  status          String    @default("pending") // pending, processing, completed, failed
+  conversionId    String? // External transaction ID
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@map("token_conversions")
+}
+
+model Withdrawal {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Decimal
+  currency      String    @default("USD")
+  method        String // bank_transfer, crypto, etc.
+  destination   Json? // Withdrawal destination details
+  status        String    @default("pending") // pending, processing, completed, failed, cancelled
+  fee           Decimal   @default(0)
+  netAmount     Decimal // Amount after fees
+  transactionId String? // External transaction ID
+  processedAt   DateTime?
+  failureReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("withdrawals")
+}
+
+model EarningRule {
+  id             String    @id @default(uuid())
+  name           String    @unique
+  type           String // daily_login, tip_view, bet_placed, bet_won, referral_signup, etc.
+  description    String?
+  tokenReward    Int       @default(0)
+  cashReward     Decimal   @default(0)
+  currency       String    @default("USD")
+  conditions     Json? // Rules and conditions
+  isActive       Boolean   @default(true)
+  maxOccurrences Int? // Maximum times this can be earned
+  cooldownHours  Int? // Cooldown period in hours
+  validFrom      DateTime?
+  validUntil     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("earning_rules")
+}
+
+model Achievement {
+  id               String            @id @default(uuid())
+  name             String            @unique
+  description      String?
+  icon             String? // Achievement icon URL
+  tokenReward      Int               @default(0)
+  cashReward       Decimal           @default(0)
+  currency         String            @default("USD")
+  conditions       Json? // Achievement conditions
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  earnedAt      DateTime    @default(now())
+  rewardClaimed Boolean     @default(false)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// Live Score System Models
+model Sport {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  icon        String? // Sport icon URL
+  createdAt   DateTime @default(now())
+  leagues     League[]
+  matches     Match[]
+  teams       Team[]
+
+  @@map("sports")
+}
+
+model Team {
+  id         String   @id @default(uuid())
+  name       String
+  shortName  String? // Short/abbreviated name
+  sportId    String
+  sport      Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  league     String? // League/competition name
+  country    String?
+  logoUrl    String? // Team logo image URL
+  isActive   Boolean  @default(true)
+  externalId String? // ID from external API provider
+  metadata   Json? // Additional team data (colors, stadium, etc.)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations for tips/predictions
+  homeTips Tip[] @relation("HomeTips")
+  awayTips Tip[] @relation("AwayTips")
+
+  @@unique([name, sportId])
+  @@map("teams")
+}
+
+model League {
+  id        String   @id @default(uuid())
+  name      String
+  sportId   String
+  sport     Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  country   String
+  season    String?
+  isActive  Boolean  @default(true)
+  logo      String? // League logo URL
+  createdAt DateTime @default(now())
+  matches   Match[]
+
+  @@map("leagues")
+}
+
+model Match {
+  id            String   @id @default(uuid())
+  externalId    String? // API provider match ID
+  sportId       String
+  sport         Sport    @relation(fields: [sportId], references: [id])
+  leagueId      String
+  league        League   @relation(fields: [leagueId], references: [id])
+  homeTeam      String
+  awayTeam      String
+  homeTeamLogo  String?
+  awayTeamLogo  String?
+  homeTeamScore Int      @default(0)
+  awayTeamScore Int      @default(0)
+  venue         String?
+  scheduledAt   DateTime
+  status        String   @default("scheduled") // scheduled, live, finished, postponed, cancelled
+  period        String? // 1st, 2nd, half-time, etc.
+  minute        Int? // Current minute for live matches
+  odds          Json? // Current odds from various bookmakers
+  statistics    Json? // Match statistics
+  lastUpdatedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  // Relations
+  tips   Tip[]
+  events MatchEvent[]
+
+  @@map("matches")
+}
+
+model LiveScoreProvider {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  apiKey      String? // API key for external service
+  apiUrl      String? // Base URL for API
+  isActive    Boolean  @default(true)
+  rateLimitMs Int      @default(1000) // Rate limit in milliseconds
+  config      Json? // Additional configuration
+  createdAt   DateTime @default(now())
+
+  @@map("live_score_providers")
+}
+
+model MatchEvent {
+  id          String   @id @default(uuid())
+  matchId     String
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  type        String // goal, yellow_card, red_card, substitution, etc.
+  team        String // home, away
+  minute      Int?
+  player      String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("match_events")
+}
+
+model AdminConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  category    String   @default("general")
+  updatedAt   DateTime @updatedAt
+  updatedBy   String // Admin user ID
+
+  @@map("admin_configs")
+}
+
+model FeatureFlag {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  enabled   Boolean  @default(false)
+  variant   String?
+  rollout   Int      @default(0) // percentage 0-100
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeId  String   @unique
+  amount    Int // Amount in cents
+  currency  String   @default("USD")
+  status    String // succeeded, pending, failed, refunded
+  type      String // subscription, token, one-time
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique // 6-digit code
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  @@index([token, expiresAt])
+  @@map("password_resets")
+}
+
+// =============================
+// NextAuth.js (Auth.js) models
+// Using Prisma Adapter: https://authjs.dev/reference/adapter/prisma
+// =============================
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =============================
+// Blog System Models
+// =============================
+
+model Blog {
+  id          String     @id @default(uuid())
+  title       String
+  slug        String     @unique
+  content     String     @db.Text // markdown content
+  excerpt     String? // short description for previews
+  headerImage String? // URL for header/featured image
+  images      String[]   @default([]) // Array of image URLs used in content
+  authorId    String?
+  authorName  String?
+  publishedAt DateTime?
+  status      BlogStatus @default(draft) // draft, published, archived
+  tags        String[]
+  viewCount   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("blogs")
+}
+
+enum BlogStatus {
+  draft
+  published
+  archived
+}
