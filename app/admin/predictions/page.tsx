@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { DateTimePicker } from "@/components/ui/datetime-picker";
 import {
   Plus,
   Edit,
@@ -640,7 +639,8 @@ export default function AdminPredictionsPage() {
 
     const matchesResult = filterResult === "all" || tip.result === filterResult;
 
-    const matchesCategory = filterCategory === "all" || tip.category === filterCategory;
+    const matchesCategory =
+      filterCategory === "all" || tip.category === filterCategory;
 
     return matchesSearch && matchesStatus && matchesResult && matchesCategory;
   });
@@ -796,13 +796,24 @@ export default function AdminPredictionsPage() {
                     </div>
 
                     <div>
-                      <DateTimePicker
+                      {/* <DateTimePicker
                         value={formData.matchDate}
                         onChange={(iso) =>
                           setFormData({ ...formData, matchDate: iso })
                         }
                         label="Match Date & Time"
                         required
+                      /> */}
+                      <Input
+                        type="datetime-local"
+                        value={formData.matchDate}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            matchDate: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-background border-2 border-border text-foreground rounded-md"
                       />
                       {errors.matchDate && (
                         <p className="text-xs text-destructive mt-1">
@@ -1322,12 +1333,24 @@ export default function AdminPredictionsPage() {
                     </div>
 
                     <div>
-                      <DateTimePicker
+                      {/* <DateTimePicker
                         value={formData.publishAt}
                         onChange={(iso) =>
                           setFormData({ ...formData, publishAt: iso })
                         }
                         label="Publish Date/Time"
+                      /> */}
+
+                      <Input
+                        type="datetime-local"
+                        value={formData.publishAt}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            publishAt: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-background border-2 border-border text-foreground rounded-md"
                       />
                     </div>
 
