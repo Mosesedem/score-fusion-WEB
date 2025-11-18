@@ -13,7 +13,7 @@ const tipSchema = z.object({
   sport: z.string().min(1, "Sport is required"),
   league: z.string().optional(),
   matchId: z.string().uuid().optional(),
-  matchDate: z.string().datetime().optional(),
+  matchDate: z.string().optional(),
   // Team relations for predictions
   homeTeamId: z.string().uuid().optional(),
   awayTeamId: z.string().uuid().optional(),
@@ -33,7 +33,7 @@ const tipSchema = z.object({
     .array(z.string().url())
     .max(10, "Maximum 10 ticket snapshots allowed")
     .default([]),
-  publishAt: z.string().datetime().optional(),
+  publishAt: z.string().optional(),
   isVIP: z.boolean().default(false),
   featured: z.boolean().default(false),
   authorId: z.string().uuid().optional(),
