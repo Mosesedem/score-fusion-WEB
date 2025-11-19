@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { UserEngagement } from "@/components/user-engagement";
 
 interface Prediction {
@@ -103,7 +102,7 @@ export default function DashboardPage() {
 
         // Fetch predictions - VIP if user has access, otherwise free
         const predictionsRes = await api.get(
-          `/predictions?vip=${vipStatus}&limit=3`
+          `/predictions?vip=${vipStatus}&limit=3&today=true`
         );
 
         if (predictionsRes.success) {

@@ -71,23 +71,22 @@ export default function TipsPage() {
         const response = await api.get<PredictionsData>("/predictions");
         if (response.success && response.data) {
           const allPredictions = response.data.predictions || [];
-          
-          // Separate current from history based on match date and result
+
           const now = new Date();
           const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-          
-          const currentPredictions = allPredictions.filter((p) => {
-            if (!p.matchDate) return true; // No match date, show as current
-            const matchDate = new Date(p.matchDate);
-            return matchDate >= twoHoursAgo && (!p.result || p.result === "pending");
-          });
-          
-          const historyPredictions = allPredictions.filter((p) => {
-            if (!p.matchDate) return false;
-            const matchDate = new Date(p.matchDate);
-            return matchDate < twoHoursAgo || (p.result && p.result !== "pending");
-          });
-          
+          const isHistorical = (p: Tip) => {
+            const hasResult = p.result && p.result !== "pending";
+            const isPast = p.matchDate
+              ? new Date(p.matchDate) < twoHoursAgo
+              : false;
+            return Boolean(hasResult || isPast);
+          };
+          const currentPredictions = allPredictions.filter(
+            (p) => !isHistorical(p)
+          );
+          const historyPredictions = allPredictions.filter((p) =>
+            isHistorical(p)
+          );
           setTips(currentPredictions);
           setHistoryTips(historyPredictions);
         }
@@ -117,18 +116,40 @@ export default function TipsPage() {
     checkVIPAccess();
   }, [api]);
 
-  const filteredTips = useMemo(
-    () => {
-      const tipsToFilter = viewMode === "current" ? tips : historyTips;
-      return tipsToFilter.filter((tip) => {
-        if (filter === "all") return true;
-        if (filter === "free") return !tip.isVIP;
-        if (filter === "vip") return tip.isVIP;
-        return true;
-      });
-    },
-    [tips, historyTips, filter, viewMode]
-  );
+  const filteredTips = useMemo(() => {
+    const tipsToFilter = viewMode === "current" ? tips : historyTips;
+    return tipsToFilter.filter((tip) => {
+      if (filter === "all") return true;
+      if (filter === "free") return !tip.isVIP;
+      if (filter === "vip") return tip.isVIP;
+      return true;
+    });
+  }, [tips, historyTips, filter, viewMode]);
+
+  const isVIPLocked = (tip: Tip) => {
+    if (!tip.isVIP) return false;
+    if (hasVIPAccess) return false;
+    if (!tip.matchDate) return true;
+    const matchDate = new Date(tip.matchDate);
+    const unlockTime = new Date(matchDate.getTime() + 8 * 60 * 60 * 1000);
+    return new Date() < unlockTime;
+  };
+
+  const displayedTips = useMemo(() => {
+    const arr = [...filteredTips];
+    arr.sort((a, b) => {
+      const aDate = a.matchDate ? new Date(a.matchDate).getTime() : -Infinity;
+      const bDate = b.matchDate ? new Date(b.matchDate).getTime() : -Infinity;
+      if (viewMode === "current") {
+        const aVal = a.matchDate ? aDate : Infinity;
+        const bVal = b.matchDate ? bDate : Infinity;
+        return aVal - bVal;
+      } else {
+        return bDate - aDate;
+      }
+    });
+    return arr;
+  }, [filteredTips, viewMode]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -204,7 +225,7 @@ export default function TipsPage() {
               History ({historyTips.length})
             </Button>
           </div>
-          
+
           {/* Filters */}
           <div className="flex flex-wrap gap-1.5 md:gap-2 mb-4 md:mb-6 lg:mb-8">
             <Button
@@ -244,7 +265,8 @@ export default function TipsPage() {
             <Card>
               <CardContent className="p-6 md:p-8 lg:p-12 text-center">
                 <p className="text-muted-foreground mb-4 text-xs md:text-sm lg:text-base">
-                  No current predictions available at the moment. Check back soon or view our history!
+                  No current predictions available at the moment. Check back
+                  soon or view our history!
                 </p>
                 <Button size="sm" onClick={() => setViewMode("history")}>
                   View History
@@ -255,13 +277,14 @@ export default function TipsPage() {
             <Card>
               <CardContent className="p-6 md:p-8 lg:p-12 text-center">
                 <p className="text-muted-foreground mb-4 text-xs md:text-sm lg:text-base">
-                  No historical predictions yet. Check back after some predictions are completed!
+                  No historical predictions yet. Check back after some
+                  predictions are completed!
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 md:gap-4 lg:gap-6">
-              {filteredTips.map((tip) => (
+              {displayedTips.map((tip) => (
                 <Card
                   key={tip.id}
                   className={`border-2 ${
@@ -270,7 +293,7 @@ export default function TipsPage() {
                 >
                   <CardHeader className="pb-2 p-3 md:p-4 lg:p-6 lg:pb-3">
                     <div className="flex items-center justify-between mb-1.5 md:mb-2 gap-1.5 md:gap-2">
-                      <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
+                      <Badge className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
                         {tip.sport}
                       </Badge>
                       <div className="flex items-center gap-1 shrink-0 flex-wrap">
@@ -348,7 +371,7 @@ export default function TipsPage() {
 
                     {/* Prediction Summary */}
                     <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground mb-3 md:mb-4 line-clamp-3">
-                      {tip.isVIP && !tip.result
+                      {isVIPLocked(tip)
                         ? "🔒 Unlock VIP access to view full analysis and ticket snapshots"
                         : tip.summary || tip.content}
                     </p>
@@ -384,7 +407,9 @@ export default function TipsPage() {
                       <div className="flex items-center gap-1 min-w-0">
                         <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
                         <span className="truncate">
-                          {new Date(tip.createdAt).toLocaleDateString()}
+                          {new Date(tip.createdAt).toLocaleString("en-NG", {
+                            timeZone: "Africa/Lagos",
+                          })}
                         </span>
                       </div>
                       {tip.authorName && (
@@ -411,7 +436,7 @@ export default function TipsPage() {
                         variant="outline"
                         size="sm"
                       >
-                        {tip.isVIP && !tip.result ? (
+                        {isVIPLocked(tip) ? (
                           <>
                             <Lock className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
                             Unlock Full Analysis
@@ -427,20 +452,24 @@ export default function TipsPage() {
             </div>
           )}
 
-          {!loading && filteredTips.length === 0 && (viewMode === "current" ? tips.length > 0 : historyTips.length > 0) && (
-            <Card>
-              <CardContent className="p-6 md:p-8 lg:p-12 text-center">
-                <p className="text-muted-foreground mb-4 text-xs md:text-sm lg:text-base">
-                  No{" "}
-                  {filter === "all" ? "" : filter === "free" ? "free" : "VIP"}{" "}
-                  predictions match your filter.
-                </p>
-                <Button size="sm" onClick={() => setFilter("all")}>
-                  Clear Filter
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          {!loading &&
+            filteredTips.length === 0 &&
+            (viewMode === "current"
+              ? tips.length > 0
+              : historyTips.length > 0) && (
+              <Card>
+                <CardContent className="p-6 md:p-8 lg:p-12 text-center">
+                  <p className="text-muted-foreground mb-4 text-xs md:text-sm lg:text-base">
+                    No{" "}
+                    {filter === "all" ? "" : filter === "free" ? "free" : "VIP"}{" "}
+                    predictions match your filter.
+                  </p>
+                  <Button size="sm" onClick={() => setFilter("all")}>
+                    Clear Filter
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
         </div>
       </section>
 

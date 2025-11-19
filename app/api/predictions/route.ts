@@ -5,6 +5,16 @@ import { getCurrentSession } from "@/lib/session";
 import { cacheHelpers } from "@/lib/redis";
 import { hasVIPAccess } from "@/lib/vip-access";
 
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function endOfDay(date: Date) {
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
 // Public predictions (tips) query schema
 const predictionsQuerySchema = z.object({
   page: z.string().transform(Number).default("1"),
@@ -24,6 +34,10 @@ const predictionsQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? val.split(",") : undefined)),
+  today: z
+    .string()
+    .transform((val) => val === "true")
+    .default("false"),
 });
 
 export async function GET(request: NextRequest) {
@@ -99,13 +113,12 @@ export async function GET(request: NextRequest) {
       isVIP: validatedQuery.vip ? true : false,
     };
 
-    // For VIP predictions, filter based on match date
-    // VIP users with access can see all, but frontend will separate current vs history
-    if (validatedQuery.vip && (!session || !session.user)) {
-      // Non-authenticated users shouldn't see VIP content
-      // This is already handled by the auth check above, but adding safeguard
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      where.matchDate = { gte: twoHoursAgo };
+    // Filter to today's matches if requested
+    if (validatedQuery.today) {
+      where.matchDate = {
+        gte: startOfDay(new Date()),
+        lt: endOfDay(new Date()),
+      };
     }
 
     if (validatedQuery.sport) {

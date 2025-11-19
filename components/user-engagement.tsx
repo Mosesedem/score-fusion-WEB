@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,7 +10,6 @@ import {
   Star,
   Trophy,
   Target,
-  Clock,
   TrendingUp,
   Crown,
   Zap,
@@ -81,7 +81,7 @@ export function UserEngagement({
     <>
       {/* Streak Celebration */}
       {showStreakCelebration && (
-        <Card className="border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 mb-4">
+        <Card className="border-amber-500 bg-linear-to-r from-amber-50 to-yellow-50 mb-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -111,7 +111,7 @@ export function UserEngagement({
 
       {/* Daily Reward */}
       {showDailyReward && (
-        <Card className="border-green-500 bg-gradient-to-r from-green-50 to-emerald-50 mb-4">
+        <Card className="border-green-500 bg-linear-to-r from-green-50 to-emerald-50 mb-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ export function UserEngagement({
 
       {/* Smart Upgrade Prompt - Only for non-VIP users */}
       {showUpgradePrompt && !isVIP && (
-        <Card className="border-primary bg-gradient-to-r from-primary/5 to-primary/10 mb-4">
+        <Card className="border-primary bg-linear-to-r from-primary/5 to-primary/10 mb-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
