@@ -8,31 +8,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Upload,
+  Image as ImageIcon,
+} from "lucide-react";
+import Image from "next/image";
 
-interface FeatureFlag {
+interface Carousel {
   id: string;
-  key: string;
-  enabled: boolean;
-  variant?: string;
-  rollout: number;
+  title?: string;
+  imageUrl: string;
+  altText?: string;
+  type: "LANDING" | "DASHBOARD_FREE" | "DASHBOARD_VIP";
+  isActive: boolean;
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export default function AdminFeatureFlagsPage() {
+export default function AdminCarouselsPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
-  const [flags, setFlags] = useState<FeatureFlag[]>([]);
+  const [carousels, setCarousels] = useState<Carousel[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingFlag, setEditingFlag] = useState<FeatureFlag | null>(null);
+  const [editingCarousel, setEditingCarousel] = useState<Carousel | null>(null);
   const [formData, setFormData] = useState({
-    key: "",
-    enabled: true,
-    variant: "",
-    rollout: "100",
+    title: "",
+    imageUrl: "",
+    altText: "",
+    type: "LANDING" as "LANDING" | "DASHBOARD_FREE" | "DASHBOARD_VIP",
+    isActive: true,
+    order: "0",
   });
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== "ADMIN")) {
@@ -42,98 +63,141 @@ export default function AdminFeatureFlagsPage() {
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
-      fetchFlags();
+      fetchCarousels();
     }
   }, [user]);
 
-  const fetchFlags = async () => {
+  const fetchCarousels = async () => {
     try {
-      const res = await fetch("/api/admin/flags");
+      const res = await fetch("/api/admin/carousels");
       if (res.ok) {
         const data = await res.json();
-        setFlags(data.flags || []);
+        setCarousels(data.carousels || []);
       }
     } catch (error) {
-      console.error("Failed to fetch flags:", error);
+      console.error("Failed to fetch carousels:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append(
+      "upload_preset",
+      process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "scorefusion"
+    );
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error("Upload failed");
+    }
+
+    const data = await res.json();
+    return data.secure_url;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setFormData({ ...formData, imageUrl: url });
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const url = "/api/admin/flags";
-      const method = editingFlag ? "PATCH" : "POST";
+      const url = "/api/admin/carousels";
+      const method = editingCarousel ? "PATCH" : "POST";
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...(editingFlag && { id: editingFlag.id }),
+          ...(editingCarousel && { id: editingCarousel.id }),
           ...formData,
-          rollout: parseInt(formData.rollout),
+          order: parseInt(formData.order),
         }),
       });
 
       if (res.ok) {
-        fetchFlags();
+        fetchCarousels();
         setShowForm(false);
-        setEditingFlag(null);
+        setEditingCarousel(null);
         setFormData({
-          key: "",
-          enabled: true,
-          variant: "",
-          rollout: "100",
+          title: "",
+          imageUrl: "",
+          altText: "",
+          type: "LANDING",
+          isActive: true,
+          order: "0",
         });
       }
     } catch (error) {
-      console.error("Failed to save flag:", error);
+      console.error("Failed to save carousel:", error);
     }
   };
 
-  const handleToggle = async (id: string, enabled: boolean) => {
+  const handleToggle = async (id: string, isActive: boolean) => {
     try {
-      const res = await fetch("/api/admin/flags", {
+      const res = await fetch("/api/admin/carousels", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, enabled }),
+        body: JSON.stringify({ id, isActive }),
       });
 
       if (res.ok) {
-        fetchFlags();
+        fetchCarousels();
       }
     } catch (error) {
-      console.error("Failed to toggle flag:", error);
+      console.error("Failed to toggle carousel:", error);
     }
   };
 
-  const handleEdit = (flag: FeatureFlag) => {
-    setEditingFlag(flag);
+  const handleEdit = (carousel: Carousel) => {
+    setEditingCarousel(carousel);
     setFormData({
-      key: flag.key,
-      enabled: flag.enabled,
-      variant: flag.variant || "",
-      rollout: flag.rollout.toString(),
+      title: carousel.title || "",
+      imageUrl: carousel.imageUrl,
+      altText: carousel.altText || "",
+      type: carousel.type,
+      isActive: carousel.isActive,
+      order: carousel.order.toString(),
     });
     setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this feature flag?")) return;
+    if (!confirm("Are you sure you want to delete this carousel image?"))
+      return;
 
     try {
-      const res = await fetch("/api/admin/flags", {
+      const res = await fetch(`/api/admin/carousels?id=${id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
       });
 
       if (res.ok) {
-        fetchFlags();
+        fetchCarousels();
       }
     } catch (error) {
-      console.error("Failed to delete flag:", error);
+      console.error("Failed to delete carousel:", error);
     }
   };
 
@@ -154,14 +218,15 @@ export default function AdminFeatureFlagsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Feature Flags</h1>
+            <h1 className="text-3xl font-bold">Carousel Management</h1>
             <p className="text-muted-foreground">
-              Control feature rollout and A/B testing
+              Manage promotional banners and carousels for landing and dashboard
+              pages
             </p>
           </div>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="h-4 w-4 mr-2" />
-            New Flag
+            Add Image
           </Button>
         </div>
 
@@ -169,85 +234,156 @@ export default function AdminFeatureFlagsPage() {
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>
-                {editingFlag ? "Edit Feature Flag" : "Create New Feature Flag"}
+                {editingCarousel
+                  ? "Edit Carousel Image"
+                  : "Add New Carousel Image"}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="key">Flag Key</Label>
+                  <Label htmlFor="title">Title (Optional)</Label>
                   <Input
-                    id="key"
-                    value={formData.key}
+                    id="title"
+                    value={formData.title}
                     onChange={(e) =>
-                      setFormData({ ...formData, key: e.target.value })
+                      setFormData({ ...formData, title: e.target.value })
                     }
-                    placeholder="e.g., enable_live_scores"
-                    required
-                    disabled={!!editingFlag}
+                    placeholder="e.g., Win with expert tips"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Unique identifier for this feature flag (cannot be changed)
-                  </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="variant">Variant (Optional)</Label>
+                <div>
+                  <Label htmlFor="type">Type</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(value: any) =>
+                      setFormData({ ...formData, type: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LANDING">Landing Page</SelectItem>
+                      <SelectItem value="DASHBOARD_FREE">
+                        Dashboard Free
+                      </SelectItem>
+                      <SelectItem value="DASHBOARD_VIP">
+                        Dashboard VIP
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="image">Image</Label>
+                  <div className="space-y-2">
                     <Input
-                      id="variant"
-                      value={formData.variant}
+                      id="imageUrl"
+                      value={formData.imageUrl}
                       onChange={(e) =>
-                        setFormData({ ...formData, variant: e.target.value })
+                        setFormData({ ...formData, imageUrl: e.target.value })
                       }
-                      placeholder="e.g., variant_a"
+                      placeholder="Image URL or upload below"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Use for A/B testing different versions
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <Label htmlFor="file-upload" className="cursor-pointer">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={uploading}
+                          asChild
+                        >
+                          <span>
+                            <Upload className="h-4 w-4 mr-2" />
+                            {uploading
+                              ? "Uploading..."
+                              : "Upload to Cloudinary"}
+                          </span>
+                        </Button>
+                      </Label>
+                    </div>
+                    {formData.imageUrl && (
+                      <div className="relative w-32 h-20">
+                        <Image
+                          src={formData.imageUrl}
+                          alt="Preview"
+                          fill
+                          className="object-cover rounded"
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <Label htmlFor="rollout">Rollout Percentage</Label>
-                    <Input
-                      id="rollout"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={formData.rollout}
-                      onChange={(e) =>
-                        setFormData({ ...formData, rollout: e.target.value })
-                      }
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      0-100% of users will see this feature
-                    </p>
-                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="altText">Alt Text</Label>
+                  <Input
+                    id="altText"
+                    value={formData.altText}
+                    onChange={(e) =>
+                      setFormData({ ...formData, altText: e.target.value })
+                    }
+                    placeholder="Alt text for accessibility"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="order">Order</Label>
+                  <Input
+                    id="order"
+                    type="number"
+                    min="0"
+                    value={formData.order}
+                    onChange={(e) =>
+                      setFormData({ ...formData, order: e.target.value })
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Lower numbers appear first
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="enabled"
-                    checked={formData.enabled}
+                    id="isActive"
+                    checked={formData.isActive}
                     onChange={(e) =>
-                      setFormData({ ...formData, enabled: e.target.checked })
+                      setFormData({ ...formData, isActive: e.target.checked })
                     }
                     className="h-4 w-4"
                   />
-                  <Label htmlFor="enabled">Enabled</Label>
+                  <Label htmlFor="isActive">Active</Label>
                 </div>
 
                 <div className="flex gap-2">
-                  <Button type="submit">
-                    {editingFlag ? "Update" : "Create"} Flag
+                  <Button type="submit" disabled={!formData.imageUrl}>
+                    {editingCarousel ? "Update" : "Create"} Image
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setShowForm(false);
-                      setEditingFlag(null);
+                      setEditingCarousel(null);
+                      setFormData({
+                        title: "",
+                        imageUrl: "",
+                        altText: "",
+                        type: "LANDING",
+                        isActive: true,
+                        order: "0",
+                      });
                     }}
                   >
                     Cancel
@@ -259,65 +395,80 @@ export default function AdminFeatureFlagsPage() {
         )}
 
         <div className="space-y-4">
-          {flags.map((flag) => (
-            <Card key={flag.id}>
+          {carousels.map((carousel) => (
+            <Card key={carousel.id}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <code className="text-lg font-mono font-bold">
-                        {flag.key}
-                      </code>
-                      {flag.enabled ? (
-                        <Badge className="bg-primary text-primary-foreground">
-                          Enabled
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-secondary">Disabled</Badge>
-                      )}
-                      {flag.variant && (
-                        <Badge className="bg-secondary">{flag.variant}</Badge>
-                      )}
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className="relative w-24 h-16 shrink-0">
+                      <Image
+                        src={carousel.imageUrl}
+                        alt={carousel.altText || carousel.title || ""}
+                        fill
+                        className="object-cover rounded"
+                      />
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>Rollout: {flag.rollout}%</span>
-                      <span>
-                        Created: {new Date(flag.createdAt).toLocaleDateString()}
-                      </span>
-                      <span>
-                        Updated: {new Date(flag.updatedAt).toLocaleDateString()}
-                      </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold">
+                          {carousel.title || "Untitled"}
+                        </h3>
+                        {carousel.isActive ? (
+                          <Badge className="bg-primary text-primary-foreground">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-secondary">Inactive</Badge>
+                        )}
+                        <Badge variant="outline">
+                          {carousel.type.replace("_", " ")}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>Order: {carousel.order}</span>
+                        <span>
+                          Created:{" "}
+                          {new Date(carousel.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {carousel.altText && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Alt: {carousel.altText}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2 ml-4">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleToggle(flag.id, !flag.enabled)}
+                      onClick={() =>
+                        handleToggle(carousel.id, !carousel.isActive)
+                      }
                     >
-                      {flag.enabled ? (
+                      {carousel.isActive ? (
                         <>
                           <ToggleRight className="h-4 w-4 mr-1" />
-                          Disable
+                          Deactivate
                         </>
                       ) : (
                         <>
                           <ToggleLeft className="h-4 w-4 mr-1" />
-                          Enable
+                          Activate
                         </>
                       )}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleEdit(flag)}
+                      onClick={() => handleEdit(carousel)}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDelete(flag.id)}
+                      onClick={() => handleDelete(carousel.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -327,10 +478,10 @@ export default function AdminFeatureFlagsPage() {
             </Card>
           ))}
 
-          {flags.length === 0 && (
+          {carousels.length === 0 && (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
-                No feature flags found. Create your first flag to get started.
+                No carousel images found. Add your first image to get started.
               </CardContent>
             </Card>
           )}

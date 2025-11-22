@@ -83,6 +83,7 @@ export default function DashboardPage() {
   });
   const [showWelcomeTooltip, setShowWelcomeTooltip] = useState(false);
   const [derivedWinRate, setDerivedWinRate] = useState<number | null>(null);
+  const [bannerImage, setBannerImage] = useState("/images/do.gif");
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -167,6 +168,16 @@ export default function DashboardPage() {
           winRateCandidate && winRateCandidate > 0 ? winRateCandidate : null
         );
 
+        // Fetch banner carousel
+        const bannerType = vipStatus ? "DASHBOARD_VIP" : "DASHBOARD_FREE";
+        const bannerRes = await fetch(`/api/carousels?type=${bannerType}`);
+        if (bannerRes.ok) {
+          const bannerData = await bannerRes.json();
+          if (bannerData.carousels && bannerData.carousels.length > 0) {
+            setBannerImage(bannerData.carousels[0].imageUrl);
+          }
+        }
+
         // Show welcome tooltip for new users
         if (user && !user.guest) {
           const joinedRecently = userStats.joinedDaysAgo <= 3;
@@ -198,24 +209,12 @@ export default function DashboardPage() {
 
         {/* Stats Grid - Enhanced with real data and engagement */}
         <div className="flex mb-4 relative sm:mb-6 h-48 md:h-64 w-full">
-          {!isVIP || user?.guest ? (
-            <Image
-              src="/images/do.gif"
-              alt="Free Banner"
-              // width={240}
-              // height={40}
-              fill
-              className="object-cover rounded-lg"
-              // className="object-contain"
-            />
-          ) : (
-            <Image
-              src="/images/do.gif"
-              alt="VIP Banner"
-              fill
-              className="object-cover rounded-lg"
-            />
-          )}
+          <Image
+            src={bannerImage}
+            alt="Dashboard Banner"
+            fill
+            className="object-cover rounded-lg"
+          />
         </div>
 
         {/* Main Content */}
@@ -416,7 +415,7 @@ export default function DashboardPage() {
                     </li>
                   </ul>
                   <Link href="/subscriptions" className="block">
-                    <button className="w-full bg-gradient-to-r from-primary to-primary/80 text-white font-bold py-2.5 px-4 rounded-lg hover:shadow-lg transition-all text-sm">
+                    <button className="w-full bg-linear-to-r from-primary to-primary/80 text-white font-bold py-2.5 px-4 rounded-lg hover:shadow-lg transition-all text-sm">
                       Get 50% OFF Now
                     </button>
                   </Link>

@@ -1,88 +1,122 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-// GET all feature flags
+// GET all carousels
 export async function GET(request: Request) {
   try {
     // TODO: Verify admin auth
 
-    const flags = await prisma.featureFlag.findMany({
-      orderBy: { key: "asc" },
+    const carousels = await prisma.carousel.findMany({
+      orderBy: { order: "asc" },
     });
 
-    return NextResponse.json({ flags });
+    return NextResponse.json({ carousels });
   } catch (error) {
-    console.error("Feature flags fetch error:", error);
+    console.error("Carousels fetch error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch feature flags" },
+      { error: "Failed to fetch carousels" },
       { status: 500 }
     );
   }
 }
 
-// POST create new feature flag
+// POST create new carousel
 export async function POST(request: Request) {
   try {
     // TODO: Verify admin auth
 
     const body = await request.json();
-    const { key, enabled, variant, rollout } = body;
+    const { title, imageUrl, altText, type, isActive, order } = body;
 
-    if (!key) {
+    if (!imageUrl || !type) {
       return NextResponse.json(
-        { error: "Flag key is required" },
+        { error: "Image URL and type are required" },
         { status: 400 }
       );
     }
 
-    const flag = await prisma.featureFlag.create({
+    const carousel = await prisma.carousel.create({
       data: {
-        key,
-        enabled: enabled ?? false,
-        variant: variant || null,
-        rollout: rollout ?? 0,
+        title: title || null,
+        imageUrl,
+        altText: altText || null,
+        type,
+        isActive: isActive ?? true,
+        order: order ?? 0,
       },
     });
 
-    return NextResponse.json({ flag }, { status: 201 });
+    return NextResponse.json({ carousel }, { status: 201 });
   } catch (error) {
-    console.error("Feature flag creation error:", error);
+    console.error("Carousel creation error:", error);
     return NextResponse.json(
-      { error: "Failed to create feature flag" },
+      { error: "Failed to create carousel" },
       { status: 500 }
     );
   }
 }
 
-// PATCH update feature flag
+// PATCH update carousel
 export async function PATCH(request: Request) {
   try {
     // TODO: Verify admin auth
 
     const body = await request.json();
-    const { id, enabled, variant, rollout } = body;
+    const { id, title, imageUrl, altText, type, isActive, order } = body;
 
     if (!id) {
       return NextResponse.json(
-        { error: "Flag ID is required" },
+        { error: "Carousel ID is required" },
         { status: 400 }
       );
     }
 
-    const flag = await prisma.featureFlag.update({
+    const carousel = await prisma.carousel.update({
       where: { id },
       data: {
-        ...(enabled !== undefined && { enabled }),
-        ...(variant !== undefined && { variant }),
-        ...(rollout !== undefined && { rollout }),
+        ...(title !== undefined && { title }),
+        ...(imageUrl !== undefined && { imageUrl }),
+        ...(altText !== undefined && { altText }),
+        ...(type !== undefined && { type }),
+        ...(isActive !== undefined && { isActive }),
+        ...(order !== undefined && { order }),
       },
     });
 
-    return NextResponse.json({ flag });
+    return NextResponse.json({ carousel });
   } catch (error) {
-    console.error("Feature flag update error:", error);
+    console.error("Carousel update error:", error);
     return NextResponse.json(
-      { error: "Failed to update feature flag" },
+      { error: "Failed to update carousel" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE carousel
+export async function DELETE(request: Request) {
+  try {
+    // TODO: Verify admin auth
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Carousel ID is required" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.carousel.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Carousel delete error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete carousel" },
       { status: 500 }
     );
   }
