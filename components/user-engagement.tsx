@@ -109,45 +109,6 @@ export function UserEngagement({
         </Card>
       )}
 
-      {/* Daily Reward */}
-      {showDailyReward && (
-        <Card className="border-green-500 bg-linear-to-r from-green-50 to-emerald-50 mb-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
-                  <Gift className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-green-800">
-                    Daily Reward Available!
-                  </h3>
-                  <p className="text-sm text-green-700">
-                    Claim your free bonus for being active today
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleDailyRewardClaim}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Claim
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDailyReward(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Smart Upgrade Prompt - Only for non-VIP users */}
       {showUpgradePrompt && !isVIP && (
         <Card className="border-primary bg-linear-to-r from-primary/5 to-primary/10 mb-4">

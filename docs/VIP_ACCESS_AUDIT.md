@@ -42,7 +42,7 @@ model Subscription {
 
 model VIPToken {
   id        String    @id @default(uuid())
-  token     String    @unique @default(cuid())
+  token     String    @unique @db.VarChar(7) // short 6-7 char PIN
   userId    String?   // null = unassigned, assigned on redemption
   tipId     String?   // null = general access, specific = one tip
   type      String    @default("general") // general, single, bundle

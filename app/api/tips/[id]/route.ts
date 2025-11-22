@@ -69,8 +69,12 @@ export async function GET(
       );
     }
 
-    // Check if tip is published
-    if (tip.status !== "published" || tip.publishAt > new Date()) {
+    // Check if tip is published and has a valid publishAt
+    if (
+      tip.status !== "published" ||
+      !tip.publishAt ||
+      tip.publishAt > new Date()
+    ) {
       return NextResponse.json(
         { success: false, error: "Tip not available" },
         { status: 403 }

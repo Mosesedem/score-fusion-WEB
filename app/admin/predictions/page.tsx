@@ -52,6 +52,7 @@ interface Tip {
   featured: boolean;
   status: string;
   result?: string;
+  matchResult?: string;
   createdAt: string;
   publishAt: string;
   tags: string[];
@@ -91,10 +92,10 @@ export default function AdminPredictionsPage() {
     oddsSource: "manual" as "manual" | "api_auto",
     sport: "FOOTBALL",
     league: "",
-    matchDate: "",
+    matchDate: new Date().toISOString().slice(0, 16),
     homeTeamId: "",
     awayTeamId: "",
-    predictionType: "winner",
+    predictionType: "",
     predictedOutcome: "",
     ticketSnapshots: [] as string[],
     isVIP: false,
@@ -105,6 +106,7 @@ export default function AdminPredictionsPage() {
     tags: "",
     confidenceLevel: "100",
     result: "pending" as "won" | "lost" | "void" | "pending",
+    matchResult: "",
   });
 
   // Search and pagination states
@@ -458,6 +460,7 @@ export default function AdminPredictionsPage() {
           .filter(Boolean),
         result: formData.result,
         category: formData.category,
+        matchResult: formData.matchResult,
       };
 
       const res = await fetch(url, {
@@ -503,8 +506,9 @@ export default function AdminPredictionsPage() {
       status: "published",
       publishAt: "",
       tags: "",
-      confidenceLevel: "75",
+      confidenceLevel: "",
       result: "pending",
+      matchResult: "",
     });
     setManualHomeTeam({ name: "", logoUrl: "" });
     setManualAwayTeam({ name: "", logoUrl: "" });
@@ -522,10 +526,12 @@ export default function AdminPredictionsPage() {
       oddsSource: tip.oddsSource as "manual" | "api_auto",
       sport: tip.sport,
       league: tip.league || "",
-      matchDate: tip.matchDate || "",
+      matchDate: tip.matchDate
+        ? new Date(tip.matchDate).toISOString().slice(0, 16)
+        : new Date().toISOString().slice(0, 16),
       homeTeamId: tip.homeTeam?.id || "",
       awayTeamId: tip.awayTeam?.id || "",
-      predictionType: tip.predictionType || "winner",
+      predictionType: tip.predictionType || "",
       predictedOutcome: tip.predictedOutcome || "",
       ticketSnapshots: tip.ticketSnapshots || [],
       isVIP: tip.isVIP,
@@ -534,8 +540,9 @@ export default function AdminPredictionsPage() {
       status: tip.status as "draft" | "scheduled" | "published" | "archived",
       publishAt: tip.publishAt,
       tags: tip.tags.join(", "),
-      confidenceLevel: tip.confidenceLevel?.toString() || "75",
+      confidenceLevel: tip.confidenceLevel?.toString() || "",
       result: (tip.result || "pending") as "won" | "lost" | "void" | "pending",
+      matchResult: tip.matchResult || "",
     });
     setShowForm(true);
   };
@@ -598,6 +605,7 @@ export default function AdminPredictionsPage() {
           publishAt: currentTip.publishAt,
           tags: currentTip.tags,
           result,
+          matchResult: currentTip.matchResult,
         }),
       });
 
@@ -796,12 +804,13 @@ export default function AdminPredictionsPage() {
                     </div>
 
                     <div>
+                      <Label htmlFor="matchDate">Match Date & Time</Label>
                       {/* <DateTimePicker
                         value={formData.matchDate}
                         onChange={(iso) =>
                           setFormData({ ...formData, matchDate: iso })
                         }
-                        label="Match Date & Time"
+                      
                         required
                       /> */}
                       <Input
@@ -1137,27 +1146,33 @@ export default function AdminPredictionsPage() {
                 <div className="space-y-4">
                   <h3 className="font-bold text-lg">Prediction Details</h3>
                   <div className="grid md:grid-cols-4 gap-4">
-                    <div>
+                    <div className="hidden">
                       <Label htmlFor="predictionType">Prediction Type</Label>
                       <select
                         id="predictionType"
                         className="w-full px-3 py-2 bg-background border-2 border-border text-foreground rounded-md"
-                        value={formData.predictionType}
+                        // value={formData.predictionType}
+                        value="winner"
                         onChange={(e) =>
                           setFormData({
                             ...formData,
                             predictionType: e.target.value,
                           })
                         }
+                        disabled
                       >
-                        <option value="winner">Match Winner</option>
+                        <option value="default" disabled>
+                          Default (Match Winner)
+                        </option>
+
+                        {/* <option value="winner">Match Winner</option>
                         <option value="over_under">Over/Under Goals</option>
                         <option value="both_teams_score">
                           Both Teams to Score
                         </option>
                         <option value="correct_score">Correct Score</option>
                         <option value="handicap">Handicap</option>
-                        <option value="other">Other</option>
+                        <option value="other">Other</option> */}
                       </select>
                     </div>
 
@@ -1175,6 +1190,21 @@ export default function AdminPredictionsPage() {
                           })
                         }
                         placeholder="e.g., Home Win, Over 2.5, Yes"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="matchResult">Match Result</Label>
+                      <Input
+                        id="matchResult"
+                        value={formData.matchResult}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            matchResult: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., FT: 2:0"
                       />
                     </div>
 
@@ -1208,17 +1238,18 @@ export default function AdminPredictionsPage() {
                             confidenceLevel: e.target.value,
                           })
                         }
-                        placeholder="e.g., 75"
+                        placeholder="e.g., 100"
                       />
                     </div>
                   </div>
 
-                  <div>
+                  <div className="hidden">
                     <Label htmlFor="oddsSource">Odds Source</Label>
                     <select
                       id="oddsSource"
                       className="w-full px-3 py-2 bg-background border-2 border-border text-foreground rounded-md"
-                      value={formData.oddsSource}
+                      // value={formData.oddsSource}
+                      value="manual"
                       onChange={(e) =>
                         setFormData({
                           ...formData,
@@ -1332,7 +1363,7 @@ export default function AdminPredictionsPage() {
                       </select>
                     </div>
 
-                    <div>
+                    <div className="hidden">
                       {/* <DateTimePicker
                         value={formData.publishAt}
                         onChange={(iso) =>
@@ -1354,7 +1385,7 @@ export default function AdminPredictionsPage() {
                       />
                     </div>
 
-                    <div>
+                    <div className="hidden">
                       <Label htmlFor="tags">Tags (comma-separated)</Label>
                       <Input
                         id="tags"
@@ -1451,45 +1482,12 @@ export default function AdminPredictionsPage() {
                       <h3 className="text-base md:text-lg font-bold">
                         {tip.title}
                       </h3>
-                      <Badge
-                        variant={
-                          tip.status === "published"
-                            ? "default"
-                            : tip.status === "draft"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {tip.status}
-                      </Badge>
+                      {tip.predictedOutcome && (
+                        <Badge variant="outline">{tip.predictedOutcome}</Badge>
+                      )}
                       {tip.isVIP && (
                         <Badge className="bg-primary text-primary-foreground">
                           VIP
-                        </Badge>
-                      )}
-                      {tip.category === "update" && (
-                        <Badge className="bg-purple-500 text-white">
-                          UPDATE
-                        </Badge>
-                      )}
-                      {tip.featured && (
-                        <Badge variant="outline">Featured</Badge>
-                      )}
-                      {tip.result && (
-                        <Badge
-                          className={
-                            tip.result === "won"
-                              ? "bg-green-500 hover:bg-green-600"
-                              : tip.result === "lost"
-                              ? "bg-red-500 hover:bg-red-600"
-                              : tip.result === "void"
-                              ? "bg-gray-500 hover:bg-gray-600"
-                              : "bg-yellow-500 hover:bg-yellow-600"
-                          }
-                        >
-                          {tip.result === "void"
-                            ? "CANCELLED"
-                            : tip.result.toUpperCase()}
                         </Badge>
                       )}
                     </div>
@@ -1529,6 +1527,11 @@ export default function AdminPredictionsPage() {
                             </span>
                           </div>
                         )}
+                        {tip.matchResult && (
+                          <span className="text-xs md:text-sm font-medium text-primary">
+                            {tip.matchResult}
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -1539,7 +1542,7 @@ export default function AdminPredictionsPage() {
                     <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm mb-2">
                       {tip.odds && (
                         <span className="text-primary font-bold">
-                          Odds: {tip.odds}
+                          Odds: {Number(tip.odds).toFixed(2)}
                         </span>
                       )}
                       <span className="text-muted-foreground">{tip.sport}</span>
@@ -1548,9 +1551,15 @@ export default function AdminPredictionsPage() {
                           {tip.league}
                         </span>
                       )}
-                      {tip.predictedOutcome && (
-                        <span className="text-muted-foreground break-all">
-                          {tip.predictedOutcome}
+                      {tip.category === "update" && (
+                        <span className="text-muted-foreground">Update</span>
+                      )}
+                      {tip.featured && (
+                        <span className="text-muted-foreground">Featured</span>
+                      )}
+                      {tip.result && tip.result !== "pending" && (
+                        <span className="text-muted-foreground">
+                          {tip.result === "void" ? "Cancelled" : tip.result}
                         </span>
                       )}
                       {typeof tip.confidenceLevel === "number" && (

@@ -75,7 +75,7 @@ export default function TermsPage() {
                 <p>
                   VIP subscriptions provide access to premium tips and
                   analytics. Subscriptions are billed automatically according to
-                  your selected plan (monthly/yearly).
+                  your selected plan (monthly).
                 </p>
                 <p>
                   You may cancel your subscription at any time. Cancellation

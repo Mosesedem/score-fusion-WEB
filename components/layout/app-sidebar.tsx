@@ -33,7 +33,7 @@ import {
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tips", label: "Tips", icon: TrendingUp },
-  { href: "/livescores", label: "Live Scores", icon: Activity },
+  // { href: "/livescores", label: "Live Scores", icon: Activity },
   { href: "/vip", label: "VIP", icon: Crown },
   { href: "/history", label: "History", icon: Trophy },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -49,7 +49,7 @@ const items = [
 const guestItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tips", label: "Tips", icon: TrendingUp },
-  { href: "/livescores", label: "Live Scores", icon: Activity },
+  // { href: "/livescores", label: "Live Scores", icon: Activity },
   { href: "/vip", label: "VIP", icon: Crown },
   { href: "/history", label: "History", icon: Trophy },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
@@ -199,7 +199,7 @@ export function AppSidebar() {
             </Link>
 
             {/* Live Scores */}
-            <Link href="/livescores" onClick={closeSheet}>
+            {/* <Link href="/livescores" onClick={closeSheet}>
               <button
                 className={`p-3 rounded-xl transition-all ${
                   pathname === "/livescores"
@@ -209,7 +209,7 @@ export function AppSidebar() {
               >
                 <Activity className="h-6 w-6" />
               </button>
-            </Link>
+            </Link> */}
 
             {/* VIP/Subscriptions */}
             <Link href={isVIP ? "/vip" : "/subscriptions"} onClick={closeSheet}>

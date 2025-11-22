@@ -107,8 +107,8 @@ export function useApiClient() {
   }, [token]);
 }
 
-// Tips API
-export interface Tip {
+// Predictions API (formerly Tips)
+export interface Prediction {
   id: string;
   title: string;
   summary?: string;
@@ -130,12 +130,20 @@ export interface Tip {
   updatedAt: string;
 }
 
-export interface TipsResponse {
-  tips: Tip[];
+export type Tip = Prediction; // Alias for backward compatibility
+
+export interface PredictionsResponse {
+  predictions: Prediction[];
   pagination: PaginationMeta;
 }
 
-export interface TipsQueryParams {
+// Backward compatibility for legacy code
+export interface TipsResponse {
+  tips: Prediction[];
+  pagination: PaginationMeta;
+}
+
+export interface PredictionsQueryParams {
   page?: number;
   limit?: number;
   sport?: string;
@@ -143,10 +151,15 @@ export interface TipsQueryParams {
   featured?: boolean;
   search?: string;
   tags?: string[];
+  history?: boolean;
+  today?: boolean;
+  category?: "tip" | "update";
 }
 
-export const tipsApi = {
-  getAll: (params: TipsQueryParams = {}) => {
+export type TipsQueryParams = PredictionsQueryParams;
+
+export const predictionsApi = {
+  getAll: (params: PredictionsQueryParams = {}) => {
     const searchParams = new URLSearchParams();
     if (params.page) searchParams.append("page", params.page.toString());
     if (params.limit) searchParams.append("limit", params.limit.toString());
@@ -157,12 +170,20 @@ export const tipsApi = {
       searchParams.append("featured", params.featured.toString());
     if (params.search) searchParams.append("search", params.search);
     if (params.tags) searchParams.append("tags", params.tags.join(","));
+    if (params.history !== undefined)
+      searchParams.append("history", params.history.toString());
+    if (params.today !== undefined)
+      searchParams.append("today", params.today.toString());
+    if (params.category) searchParams.append("category", params.category);
 
-    return api.get<TipsResponse>(`/tips?${searchParams.toString()}`);
+    return api.get<PredictionsResponse>(`/predictions?${searchParams.toString()}`);
   },
 
-  getById: (id: string) => api.get<{ tip: Tip }>(`/tips/${id}`),
+  getById: (id: string) => api.get<{ prediction: Prediction }>(`/predictions/${id}`),
 };
+
+// Legacy export
+export const tipsApi = predictionsApi;
 
 // Bets API
 export interface Bet {

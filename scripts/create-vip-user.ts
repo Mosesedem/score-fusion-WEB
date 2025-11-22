@@ -65,10 +65,19 @@ async function createVIPUser() {
 
     // Create VIP token as well
     console.log("\nCreating VIP token...");
+    // Generate a short 6-char test PIN (alphanumeric)
+    function generateTestPin() {
+      const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+      let pin = "";
+      for (let i = 0; i < 6; i++)
+        pin += chars[Math.floor(Math.random() * chars.length)];
+      return pin;
+    }
+
     const token = await prisma.vIPToken.create({
       data: {
         userId: user.id,
-        token: `VIP-TEST-${Date.now()}`,
+        token: generateTestPin(),
         type: "general",
         quantity: 10,
         used: 0,

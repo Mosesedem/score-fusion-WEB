@@ -1,13 +1,11 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useApiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, TrendingUp, Crown, Lock } from "lucide-react";
+import { TrendingUp, Crown, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 
 interface Tip {
   id: string;
@@ -33,6 +31,7 @@ interface Tip {
   };
   predictionType?: string;
   predictedOutcome?: string;
+  confidenceLevel?: number;
   ticketSnapshots: string[];
   isVIP: boolean;
   featured: boolean;
@@ -41,38 +40,52 @@ interface Tip {
   successRate?: number;
   createdAt: string;
   authorName?: string;
+  matchResult?: string;
+  tipResult?: {
+    id: string;
+    settledAt: string;
+    outcome: string;
+    payout?: number;
+    createdAt: string;
+  };
 }
 
 export default function HistoryPage() {
-  const { data: session } = useSession();
   const api = useApiClient();
   const [allPredictions, setAllPredictions] = useState<Tip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "free" | "vip">("all");
-  const [hasVIPAccess, setHasVIPAccess] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
+
+  const filteredPredictions = useMemo(() => {
+    return allPredictions.filter((t) =>
+      filter === "all" ? true : filter === "free" ? !t.isVIP : t.isVIP
+    );
+  }, [allPredictions, filter]);
+
+  const displayedPredictions = useMemo(() => {
+    const arr = [...filteredPredictions];
+    arr.sort((a, b) => {
+      const aDate = a.matchDate ? new Date(a.matchDate).getTime() : -Infinity;
+      const bDate = b.matchDate ? new Date(b.matchDate).getTime() : -Infinity;
+      return bDate - aDate;
+    });
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return arr.slice(startIndex, endIndex);
+  }, [filteredPredictions, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredPredictions.length / itemsPerPage);
 
   const fetchHistory = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // Fetch all predictions
-      const response = await api.get<{ predictions: Tip[] }>("/predictions");
-      const now = new Date();
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-
-      const isHistorical = (tip: Tip) => {
-        const hasResult = tip.result && tip.result !== "pending";
-        const isPast = tip.matchDate ? new Date(tip.matchDate) < twoHoursAgo : false;
-        return Boolean(hasResult || isPast);
-      };
-
-      const historical = (response.data?.predictions || []).filter(isHistorical);
-      historical.sort((a, b) => {
-        const aDate = a.matchDate ? new Date(a.matchDate).getTime() : -Infinity;
-        const bDate = b.matchDate ? new Date(b.matchDate).getTime() : -Infinity;
-        return bDate - aDate;
-      });
-
-      setAllPredictions(historical);
+      const res = await api.get("/predictions?history=true");
+      if (res.success) {
+        const data = res.data as { predictions: Tip[] };
+        setAllPredictions(data.predictions || []);
+      }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     } finally {
@@ -81,46 +94,13 @@ export default function HistoryPage() {
   }, [api]);
 
   useEffect(() => {
-    if (session) {
-      fetchHistory();
-    } else {
-      setLoading(false);
-    }
-  }, [session, fetchHistory]);
+    fetchHistory();
+  }, [fetchHistory]);
 
+  // Reset to page 1 when filter changes
   useEffect(() => {
-    const checkVIPAccess = async () => {
-      try {
-        const res = await api.get("/vip/status");
-        if (res.success) {
-          const data = res.data as { hasAccess: boolean };
-          setHasVIPAccess(data.hasAccess);
-        }
-      } catch (error) {
-      }
-    };
-
-    checkVIPAccess();
-  }, [api]);
-
-  const getResultBadge = (result?: string) => {
-    if (!result) return null;
-    const colors = {
-      won: "bg-green-500 text-white",
-      lost: "bg-red-500 text-white",
-      void: "bg-gray-500 text-white",
-      pending: "bg-blue-500 text-white",
-    };
-    return (
-      <Badge
-        className={`${
-          colors[result.toLowerCase() as keyof typeof colors] || colors.pending
-        } text-[10px] md:text-xs px-1.5 md:px-2 py-0.5`}
-      >
-        {result.toUpperCase()}
-      </Badge>
-    );
-  };
+    setCurrentPage(1);
+  }, [filter]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,134 +150,213 @@ export default function HistoryPage() {
             </CardHeader>
             <CardContent className="p-3 md:p-4 lg:p-6 pt-0">
               {loading ? (
-                <div className="text-center py-8 md:py-12 text-muted-foreground text-xs md:text-sm">
-                  Loading history...
+                <div className="text-center py-12 text-muted-foreground">
+                  <Loader2 className="animate-spin h-8 w-8 mx-auto mb-4" />
+                  <p className="text-sm">Loading history...</p>
                 </div>
-              ) : allPredictions.filter((t) => (filter === "all" ? true : filter === "free" ? !t.isVIP : t.isVIP)).length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
-                  {[...allPredictions]
-                    .filter((t) => (filter === "all" ? true : filter === "free" ? !t.isVIP : t.isVIP))
-                    .sort((a, b) => {
-                      const aDate = a.matchDate ? new Date(a.matchDate).getTime() : -Infinity;
-                      const bDate = b.matchDate ? new Date(b.matchDate).getTime() : -Infinity;
-                      return bDate - aDate;
-                    })
-                    .map((tip) => (
-                      <div
-                        key={tip.id}
-                        className={`border-2 ${tip.isVIP ? "border-primary/50" : "border-muted"} rounded-lg p-3 md:p-4 hover:border-primary transition-colors`}
-                      >
-                        <div className="flex items-start justify-between gap-2 md:gap-4 mb-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2 flex-wrap">
-                              {tip.league && (
-                                <Badge className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                                  {tip.league}
-                                </Badge>
-                              )}
-                              {tip.featured && (
-                                <Badge className="bg-yellow-500 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                                  Featured
-                                </Badge>
-                              )}
-                              {tip.isVIP && (
-                                <Badge className="bg-primary text-primary-foreground text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 flex items-center gap-1">
-                                  <Crown className="h-3 w-3" /> VIP
-                                </Badge>
-                              )}
-                              {tip.result && getResultBadge(tip.result)}
-                            </div>
-                            <h4 className="text-muted-foreground text-sm md:text-base mb-1 md:mb-2 line-clamp-2">
-                              {tip.title}
-                            </h4>
-                            <div className="flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground mb-2">
-                              <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3" />
-                              <span>
-                                {tip.matchDate
-                                  ? new Date(tip.matchDate).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })
-                                  : "N/A"}
-                              </span>
-                            </div>
-                            {(tip.homeTeam || tip.awayTeam) && (
-                              <div className="flex items-center gap-2 text-sm md:text-base font-bold mb-2">
-                                {tip.homeTeam && (
-                                  <div className="flex items-center gap-1">
-                                    {tip.homeTeam.logoUrl && (
+              ) : allPredictions.filter((t) =>
+                  filter === "all"
+                    ? true
+                    : filter === "free"
+                    ? !t.isVIP
+                    : t.isVIP
+                ).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {displayedPredictions.map((tip) => (
+                    <Link
+                      key={tip.id}
+                      href={`/tips/${tip.id}`}
+                      className="block"
+                    >
+                      <Card className="hover:shadow-lg transition-all hover:border-primary/50">
+                        <CardContent className="p-3 sm:p-4">
+                          {/* Match Teams with Logos */}
+                          {tip.homeTeam && tip.awayTeam ? (
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  {tip.homeTeam.logoUrl && (
+                                    <div className="relative h-8 w-8 sm:h-10 sm:w-10 shrink-0">
                                       <img
                                         src={tip.homeTeam.logoUrl}
                                         alt={tip.homeTeam.name}
-                                        className="h-4 w-4 md:h-5 md:w-5 object-contain"
+                                        className="object-contain"
                                       />
-                                    )}
-                                    <span>
-                                      {tip.homeTeam.shortName || tip.homeTeam.name}
-                                    </span>
-                                  </div>
-                                )}
-                                <span className="text-muted-foreground font-normal text-sm md:text-base">
-                                  vs
-                                </span>
-                                {tip.awayTeam && (
-                                  <div className="flex items-center gap-1">
-                                    {tip.awayTeam.logoUrl && (
+                                    </div>
+                                  )}
+                                  <span className="font-semibold text-sm sm:text-base truncate">
+                                    {tip.homeTeam.name}
+                                  </span>
+                                </div>
+                                <div className="px-2 py-1 bg-muted rounded text-xs font-bold">
+                                  VS
+                                </div>
+                                <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                                  <span className="font-semibold text-sm sm:text-base truncate">
+                                    {tip.awayTeam.name}
+                                  </span>
+                                  {tip.awayTeam.logoUrl && (
+                                    <div className="relative h-8 w-8 sm:h-10 sm:w-10 shrink-0">
                                       <img
                                         src={tip.awayTeam.logoUrl}
                                         alt={tip.awayTeam.name}
-                                        className="h-4 w-4 md:h-5 md:w-5 object-contain"
+                                        className="object-contain"
                                       />
-                                    )}
-                                    <span>
-                                      {tip.awayTeam.shortName || tip.awayTeam.name}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <h3 className="font-semibold text-sm sm:text-base mb-2">
+                              {tip.title}
+                            </h3>
+                          )}
+
+                          {/* League & Sport */}
+                          <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground mb-2">
+                            <span className="px-2 py-0.5 bg-secondary rounded">
+                              {tip.sport}
+                            </span>
+                            {tip.league && (
+                              <span className="truncate">{tip.league}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-center gap-2 text-[14px] sm:text-xs text-muted-foreground mb-2">
+                            {tip.matchDate && (
+                              <span className="truncate">
+                                {new Date(tip.matchDate).toLocaleString(
+                                  "en-US",
+                                  {
+                                    timeZone: "UTC",
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: false,
+                                  }
+                                )}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Prediction Summary */}
+                          {tip.summary && (
+                            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">
+                              {tip.summary}
+                            </p>
+                          )}
+
+                          {/* Tip Result Details */}
+                          {tip.tipResult && (
+                            <details className="mb-3">
+                              <summary className="text-[10px] md:text-xs lg:text-sm font-medium cursor-pointer text-primary hover:text-primary/80">
+                                Tip Result Details
+                              </summary>
+                              <div className="mt-1 space-y-1 text-[10px] md:text-xs lg:text-sm pl-2 border-l-2 border-primary/20">
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Settled At:{" "}
+                                  </span>
+                                  <span className="font-medium">
+                                    {new Date(
+                                      tip.tipResult.settledAt
+                                    ).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Outcome:{" "}
+                                  </span>
+                                  <span className="font-medium capitalize">
+                                    {tip.tipResult.outcome}
+                                  </span>
+                                </div>
+                                {tip.tipResult.payout && (
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Payout:{" "}
+                                    </span>
+                                    <span className="font-medium">
+                                      €{tip.tipResult.payout}
                                     </span>
                                   </div>
                                 )}
                               </div>
-                            )}
+                            </details>
+                          )}
+
+                          {/* Footer - Odds & Prediction */}
+                          <div className="flex items-center justify-between pt-2 border-t">
                             {tip.predictedOutcome && (
-                              <div className="text-[10px] md:text-xs">
-                                <span className="text-muted-foreground">Prediction: </span>
-                                <span className="font-medium">{tip.predictedOutcome}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] sm:text-xs text-muted-foreground">
+                                  Prediction:
+                                </span>
+                                <span className="text-xs sm:text-sm font-bold text-primary">
+                                  {tip.predictedOutcome}
+                                </span>
+                              </div>
+                            )}
+                            {tip.odds && (
+                              <div className="px-2 py-1 bg-primary/10 text-primary rounded font-bold text-xs sm:text-sm">
+                                Odds: {Number(tip.odds).toFixed(2)}
+                              </div>
+                            )}
+                            {tip.isVIP && (
+                              <Crown className="h-4 w-4 text-amber-500" />
+                            )}
+                            {tip.result === "won" && (
+                              <div className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded">
+                                Won
                               </div>
                             )}
                           </div>
-                          <div className="text-right shrink-0">
-                            {tip.odds && (
-                              <>
-                                <div className="text-base md:text-lg lg:text-xl font-bold text-primary">
-                                  {tip.odds}
-                                </div>
-                                <div className="text-[10px] md:text-xs text-muted-foreground">Odds</div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <Link href={`/tips/${tip.id}`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-[10px] md:text-xs"
-                          >
-                            {tip.isVIP && !hasVIPAccess && tip.matchDate && new Date() < new Date(new Date(tip.matchDate).getTime() + 8 * 60 * 60 * 1000) ? (
-                              <>
-                                <Lock className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-                                Unlock Full Analysis
-                              </>
-                            ) : (
-                              <>
-                                <TrendingUp className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-                                View Details
-                              </>
-                            )}
-                          </Button>
-                        </Link>
-                      </div>
-                    ))}
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-8 md:py-12 text-muted-foreground">
                   <TrendingUp className="h-12 w-12 md:h-16 md:w-16 mx-auto mb-3 md:mb-4 opacity-50" />
-                  <p className="text-sm md:text-base lg:text-lg">No completed predictions yet</p>
-                  <p className="text-xs md:text-sm mt-2">Completed predictions will appear here after matches conclude</p>
+                  <p className="text-sm md:text-base lg:text-lg">
+                    No completed predictions yet
+                  </p>
+                  <p className="text-xs md:text-sm mt-2">
+                    Completed predictions will appear here after matches
+                    conclude
+                  </p>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6 md:mt-8">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
                 </div>
               )}
             </CardContent>

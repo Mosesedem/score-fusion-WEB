@@ -18,46 +18,28 @@ import {
   Clock,
 } from "lucide-react";
 
-interface Match {
-  id: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeTeamScore: number | null;
-  awayTeamScore: number | null;
-  status: string;
-  minute?: number;
-  scheduledAt: string;
-  league?: {
-    name: string;
-    country: string;
-    logo?: string;
-  };
-  homeTeamLogo?: string;
-  awayTeamLogo?: string;
-  statistics?: {
-    possession?: { home: number; away: number };
-    shots?: { home: number; away: number };
-    shotsOnTarget?: { home: number; away: number };
-    corners?: { home: number; away: number };
-    fouls?: { home: number; away: number };
-    yellowCards?: { home: number; away: number };
-    redCards?: { home: number; away: number };
-  };
-}
-
-interface Tip {
+interface Prediction {
   id: string;
   title: string;
   sport: string;
   result?: "won" | "lost" | "void" | "pending";
   successRate?: number;
   odds?: number;
+  league: string;
+  matchDate: string;
+  homeTeam: {
+    name: string;
+  };
+  awayTeam: {
+    name: string;
+  };
+  predictedOutcome: string;
 }
 
 interface Analytics {
-  totalMatches: number;
-  liveMatches: number;
-  completedToday: number;
+  totalPredictions: number;
+  pendingPredictions: number;
+  completedPredictions: number;
   tipPerformance: {
     total: number;
     won: number;
@@ -67,25 +49,23 @@ interface Analytics {
   };
   leagueStats: {
     league: string;
-    matches: number;
-    avgGoals: number;
+    predictions: number;
+    successRate: number;
   }[];
   trendingTeams: {
     team: string;
-    wins: number;
-    draws: number;
-    losses: number;
-    form: string;
+    correct: number;
+    total: number;
+    successRate: number;
   }[];
 }
 
 export default function AnalyticsPage() {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [analytics, setAnalytics] = useState<Analytics>({
-    totalMatches: 0,
-    liveMatches: 0,
-    completedToday: 0,
+    totalPredictions: 0,
+    pendingPredictions: 0,
+    completedPredictions: 0,
     tipPerformance: {
       total: 0,
       won: 0,
@@ -123,97 +103,50 @@ export default function AnalyticsPage() {
       }
       end.setHours(23, 59, 59, 999);
 
-      // Fetch all matches in date range with a single API call
-      const matchesUrl = `/api/livescores/matches?source=api&sport=football&dateFrom=${start.toISOString()}&dateTo=${end.toISOString()}&limit=500`;
-      const liveUrl = `/api/livescores/matches?source=api&status=live&sport=football&limit=50`;
-      const tipsUrl = `/api/tips?sport=football&limit=100`;
+      // Fetch predictions
+      const predictionsUrl = `/api/predictions?history=true&limit=1000`;
 
-      console.log("[Analytics] Fetching URLs", {
-        matchesUrl,
-        liveUrl,
-        tipsUrl,
+      console.log("[Analytics] Fetching URL", predictionsUrl);
+
+      const predictionsRes = await fetch(predictionsUrl);
+
+      console.log("[Analytics] Response status", {
+        ok: predictionsRes.ok,
+        status: predictionsRes.status,
       });
 
-      const [matchesRes, liveMatchesRes, tipsRes] = await Promise.all([
-        fetch(matchesUrl),
-        fetch(liveUrl),
-        fetch(tipsUrl),
-      ]);
+      let allPredictions: Prediction[] = [];
 
-      console.log("[Analytics] Responses status", {
-        matchesOk: matchesRes.ok,
-        matchesStatus: matchesRes.status,
-        liveOk: liveMatchesRes.ok,
-        liveStatus: liveMatchesRes.status,
-        tipsOk: tipsRes.ok,
-        tipsStatus: tipsRes.status,
-      });
-
-      let allMatches: Match[] = [];
-      let live: Match[] = [];
-      let allTips: Tip[] = [];
-
-      // Process matches response
+      // Process predictions response
       try {
-        const matchesData = await matchesRes.json().catch(() => null);
-        console.log("[Analytics] matches json", matchesData);
-        if (!matchesRes.ok) {
-          console.error("[Analytics] matches fetch failed", matchesRes.status);
-        } else if (!matchesData?.success) {
-          console.warn("[Analytics] matches success=false", matchesData?.error);
-        } else if (!matchesData?.data?.matches) {
-          console.warn("[Analytics] matches missing data.matches");
+        const predictionsData = await predictionsRes.json().catch(() => null);
+        console.log("[Analytics] predictions json", predictionsData);
+        if (!predictionsRes.ok) {
+          console.error(
+            "[Analytics] predictions fetch failed",
+            predictionsRes.status
+          );
+        } else if (!predictionsData?.success) {
+          console.warn(
+            "[Analytics] predictions success=false",
+            predictionsData?.error
+          );
+        } else if (!predictionsData?.data?.predictions) {
+          console.warn("[Analytics] predictions missing data.predictions");
         } else {
-          allMatches = matchesData.data.matches as Match[];
+          allPredictions = predictionsData.data.predictions as Prediction[];
         }
       } catch (e) {
-        console.error("[Analytics] matches parse error", e);
+        console.error("[Analytics] predictions parse error", e);
       }
 
-      try {
-        const liveData = await liveMatchesRes.json().catch(() => null);
-        console.log("[Analytics] live json", liveData);
-        if (!liveMatchesRes.ok) {
-          console.error("[Analytics] live fetch failed", liveMatchesRes.status);
-        } else if (!liveData?.success) {
-          console.warn("[Analytics] live success=false", liveData?.error);
-        } else if (!liveData?.data?.matches) {
-          console.warn("[Analytics] live missing data.matches");
-        } else {
-          live = liveData.data.matches as Match[];
-        }
-      } catch (e) {
-        console.error("[Analytics] live parse error", e);
-      }
+      console.log("[Analytics] predictions count", allPredictions.length);
 
-      try {
-        const tipsData = await tipsRes.json().catch(() => null);
-        console.log("[Analytics] tips json", tipsData);
-        if (!tipsRes.ok) {
-          console.error("[Analytics] tips fetch failed", tipsRes.status);
-        } else if (!tipsData?.success) {
-          console.warn("[Analytics] tips success=false", tipsData?.error);
-        } else if (!tipsData?.data?.tips) {
-          console.warn("[Analytics] tips missing data.tips");
-        } else {
-          allTips = tipsData.data.tips as Tip[];
-        }
-      } catch (e) {
-        console.error("[Analytics] tips parse error", e);
-      }
-
-      console.log("[Analytics] counts", {
-        allMatches: allMatches.length,
-        live: live.length,
-        tips: allTips.length,
-      });
-
-      setMatches(allMatches);
-      setLiveMatches(live);
+      setPredictions(allPredictions);
 
       // Calculate analytics
       console.time("[Analytics] calculateAnalytics time");
-      calculateAnalytics(allMatches, live, allTips);
+      calculateAnalytics(allPredictions, start, end);
       console.timeEnd("[Analytics] calculateAnalytics time");
       setLastUpdate(new Date());
       console.timeEnd("[Analytics] fetchData time");
@@ -226,131 +159,108 @@ export default function AnalyticsPage() {
   };
 
   const calculateAnalytics = (
-    allMatches: Match[],
-    live: Match[],
-    allTips: Tip[]
+    allPredictions: Prediction[],
+    start: Date,
+    end: Date
   ) => {
     console.groupCollapsed("[Analytics] calculateAnalytics details");
     console.log("[Analytics] input sizes", {
-      allMatches: allMatches.length,
-      live: live.length,
-      allTips: allTips.length,
+      allPredictions: allPredictions.length,
     });
 
-    // Match analytics
-    const finishedMatches = allMatches.filter((m) => m.status === "finished");
-    const completedMatches = finishedMatches.length;
+    // Filter predictions by date range
+    const filteredPredictions = allPredictions.filter((p) => {
+      const matchDate = new Date(p.matchDate);
+      return matchDate >= start && matchDate <= end;
+    });
+
+    console.log("[Analytics] filtered predictions", filteredPredictions.length);
+
+    // Prediction analytics
+    const totalPredictions = filteredPredictions.length;
+    const pendingPredictions = filteredPredictions.filter(
+      (p) => p.result === "pending"
+    ).length;
+    const completedPredictions = totalPredictions - pendingPredictions;
 
     // Tip performance
-    const wonTips = allTips.filter((t) => t.result === "won").length;
-    const lostTips = allTips.filter((t) => t.result === "lost").length;
-    const pendingTips = allTips.filter((t) => t.result === "pending").length;
-    const totalTips = allTips.length;
+    const wonTips = filteredPredictions.filter(
+      (t) => t.result === "won"
+    ).length;
+    const lostTips = filteredPredictions.filter(
+      (t) => t.result === "lost"
+    ).length;
+    const pendingTips = filteredPredictions.filter(
+      (t) => t.result === "pending"
+    ).length;
+    const totalTips = filteredPredictions.length;
     const successRate =
       wonTips + lostTips > 0 ? (wonTips / (wonTips + lostTips)) * 100 : 0;
 
     // League statistics
     const leagueMap = new Map<
       string,
-      { matches: number; totalGoals: number }
+      { predictions: number; won: number; lost: number }
     >();
-    finishedMatches.forEach((match) => {
-      if (match.league?.name) {
-        const league = match.league.name;
-        const goals = (match.homeTeamScore || 0) + (match.awayTeamScore || 0);
-        const existing = leagueMap.get(league) || { matches: 0, totalGoals: 0 };
-        leagueMap.set(league, {
-          matches: existing.matches + 1,
-          totalGoals: existing.totalGoals + goals,
-        });
-      }
+    filteredPredictions.forEach((prediction) => {
+      const league = prediction.league;
+      const existing = leagueMap.get(league) || {
+        predictions: 0,
+        won: 0,
+        lost: 0,
+      };
+      existing.predictions += 1;
+      if (prediction.result === "won") existing.won += 1;
+      else if (prediction.result === "lost") existing.lost += 1;
+      leagueMap.set(league, existing);
     });
 
     const leagueStats = Array.from(leagueMap.entries())
       .map(([league, data]) => ({
         league,
-        matches: data.matches,
-        avgGoals: data.matches > 0 ? data.totalGoals / data.matches : 0,
+        predictions: data.predictions,
+        successRate:
+          data.won + data.lost > 0
+            ? (data.won / (data.won + data.lost)) * 100
+            : 0,
       }))
-      .sort((a, b) => b.matches - a.matches)
+      .sort((a, b) => b.predictions - a.predictions)
       .slice(0, 5);
 
-    // Team form analysis (computed from finished matches within the selected period)
-    type TeamAgg = {
-      wins: number;
-      draws: number;
-      losses: number;
-      recent: ("W" | "D" | "L")[];
-    };
-    const teamMap = new Map<string, TeamAgg>();
+    // Team form analysis (based on correct predictions)
+    const teamMap = new Map<string, { correct: number; total: number }>();
 
-    // Sort by date to build correct recency order
-    const finishedSorted = [...finishedMatches].sort((a, b) => {
-      const da = new Date(a.scheduledAt).getTime();
-      const db = new Date(b.scheduledAt).getTime();
-      return da - db;
-    });
+    filteredPredictions.forEach((p) => {
+      if (p.result === "won" || p.result === "lost") {
+        let team: string | null = null;
+        if (p.predictedOutcome === "home_win") team = p.homeTeam.name;
+        else if (p.predictedOutcome === "away_win") team = p.awayTeam.name;
+        // Add more cases if needed
 
-    const pushResult = (name: string, res: "W" | "D" | "L") => {
-      const entry = teamMap.get(name) || {
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        recent: [],
-      };
-      if (res === "W") entry.wins += 1;
-      else if (res === "D") entry.draws += 1;
-      else entry.losses += 1;
-      entry.recent.push(res);
-      // cap history to last 10 results to avoid unbounded growth in memory
-      if (entry.recent.length > 10) entry.recent.shift();
-      teamMap.set(name, entry);
-    };
-
-    finishedSorted.forEach((m) => {
-      const hs = m.homeTeamScore ?? 0;
-      const as = m.awayTeamScore ?? 0;
-      if (!m.homeTeam || !m.awayTeam) return;
-      if (hs > as) {
-        pushResult(m.homeTeam, "W");
-        pushResult(m.awayTeam, "L");
-      } else if (hs < as) {
-        pushResult(m.homeTeam, "L");
-        pushResult(m.awayTeam, "W");
-      } else {
-        pushResult(m.homeTeam, "D");
-        pushResult(m.awayTeam, "D");
+        if (team) {
+          const existing = teamMap.get(team) || { correct: 0, total: 0 };
+          existing.total += 1;
+          if (p.result === "won") existing.correct += 1;
+          teamMap.set(team, existing);
+        }
       }
     });
 
     const trendingTeams = Array.from(teamMap.entries())
       .map(([team, agg]) => ({
         team,
-        wins: agg.wins,
-        draws: agg.draws,
-        losses: agg.losses,
-        // most recent 5 results
-        form: agg.recent.slice(-5).reverse().join("") || "",
+        correct: agg.correct,
+        total: agg.total,
+        successRate: agg.total > 0 ? (agg.correct / agg.total) * 100 : 0,
       }))
-      .filter((t) => t.form.length > 0)
-      .sort((a, b) => {
-        // primary: wins desc, secondary: draws desc, tertiary: losses asc
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        if (b.draws !== a.draws) return b.draws - a.draws;
-        return a.losses - b.losses;
-      })
+      .filter((t) => t.total > 0)
+      .sort((a, b) => b.correct - a.correct)
       .slice(0, 5);
 
-    if (trendingTeams.length === 0) {
-      console.warn(
-        "[Analytics] No trending teams computed (insufficient finished matches in range)"
-      );
-    }
-
     setAnalytics({
-      totalMatches: allMatches.length,
-      liveMatches: live.length,
-      completedToday: completedMatches,
+      totalPredictions,
+      pendingPredictions,
+      completedPredictions,
       tipPerformance: {
         total: totalTips,
         won: wonTips,
@@ -363,9 +273,9 @@ export default function AnalyticsPage() {
     });
     console.log("[Analytics] analytics computed", {
       totals: {
-        matches: allMatches.length,
-        live: live.length,
-        completed: completedMatches,
+        predictions: totalPredictions,
+        pending: pendingPredictions,
+        completed: completedPredictions,
       },
       leagueStatsCount: leagueStats.length,
       trendingTeamsCount: trendingTeams.length,
@@ -405,9 +315,10 @@ export default function AnalyticsPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold mb-2">Football Analytics</h1>
+              <h1 className="text-4xl font-bold mb-2">Prediction Analytics</h1>
               <p className="text-muted-foreground">
-                Real-time match statistics, performance metrics, and insights
+                Real-time prediction statistics, performance metrics, and
+                insights
               </p>
             </div>
             <Button
@@ -460,14 +371,16 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Total Matches
+                Total Predictions
               </CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalMatches}</div>
+              <div className="text-2xl font-bold">
+                {analytics.totalPredictions}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Scheduled for {selectedPeriod}
+                For {selectedPeriod}
               </p>
             </CardContent>
           </Card>
@@ -475,30 +388,30 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Live Matches
+                Pending Predictions
               </CardTitle>
               <Activity className="h-4 w-4 text-primary animate-pulse" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">
-                {analytics.liveMatches}
+                {analytics.pendingPredictions}
               </div>
-              <p className="text-xs text-muted-foreground">Currently playing</p>
+              <p className="text-xs text-muted-foreground">Awaiting results</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Completed Today
+                Completed Predictions
               </CardTitle>
               <Trophy className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {analytics.completedToday}
+                {analytics.completedPredictions}
               </div>
-              <p className="text-xs text-muted-foreground">Finished matches</p>
+              <p className="text-xs text-muted-foreground">Results available</p>
             </CardContent>
           </Card>
 
@@ -523,144 +436,55 @@ export default function AnalyticsPage() {
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-8 mb-8">
-          {/* Live Matches with Stats */}
+          {/* Recent Predictions */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-primary animate-pulse" />
-                  Live Match Analysis
+                  Recent Predictions
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {loading ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    Loading live matches...
+                    Loading recent predictions...
                   </div>
-                ) : liveMatches.length === 0 ? (
+                ) : predictions.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    No live matches at the moment
+                    No predictions available
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {liveMatches.map((match) => (
+                    {predictions.slice(0, 10).map((prediction) => (
                       <div
-                        key={match.id}
+                        key={prediction.id}
                         className="border border-border rounded-lg p-4 hover:border-primary transition-colors"
                       >
-                        {/* Match Header */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="text-xs text-muted-foreground mb-1">
-                              {match.league?.name || "Unknown League"}
-                            </div>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-semibold flex items-center gap-2">
-                                {match.homeTeamLogo && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={match.homeTeamLogo}
-                                    alt={match.homeTeam}
-                                    className="h-5 w-5 object-contain"
-                                    loading="lazy"
-                                  />
-                                )}
-                                {match.homeTeam}
-                              </span>
-                              <span className="text-2xl font-bold">
-                                {match.homeTeamScore ?? 0}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold flex items-center gap-2">
-                                {match.awayTeamLogo && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={match.awayTeamLogo}
-                                    alt={match.awayTeam}
-                                    className="h-5 w-5 object-contain"
-                                    loading="lazy"
-                                  />
-                                )}
-                                {match.awayTeam}
-                              </span>
-                              <span className="text-2xl font-bold">
-                                {match.awayTeamScore ?? 0}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="ml-6 text-center">
-                            <div className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-full mb-1">
-                              LIVE
-                            </div>
-                            {match.minute && (
-                              <div className="text-sm font-medium">
-                                {match.minute}&apos;
-                              </div>
-                            )}
-                          </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold">
+                            {prediction.title}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full ${
+                              prediction.result === "won"
+                                ? "bg-green-500 text-white"
+                                : prediction.result === "lost"
+                                ? "bg-red-500 text-white"
+                                : "bg-yellow-500 text-white"
+                            }`}
+                          >
+                            {prediction.result?.toUpperCase() || "PENDING"}
+                          </span>
                         </div>
-
-                        {/* Match Statistics */}
-                        {match.statistics && (
-                          <div className="space-y-2 pt-4 border-t border-border">
-                            {match.statistics.possession && (
-                              <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span>Possession</span>
-                                  <span className="font-medium">
-                                    {match.statistics.possession.home}% -{" "}
-                                    {match.statistics.possession.away}%
-                                  </span>
-                                </div>
-                                <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-                                  <div
-                                    className="bg-primary h-full transition-all"
-                                    style={{
-                                      width: `${match.statistics.possession.home}%`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="grid grid-cols-3 gap-4 text-xs">
-                              {match.statistics.shots && (
-                                <div className="text-center">
-                                  <div className="text-muted-foreground mb-1">
-                                    Shots
-                                  </div>
-                                  <div className="font-semibold">
-                                    {match.statistics.shots.home} -{" "}
-                                    {match.statistics.shots.away}
-                                  </div>
-                                </div>
-                              )}
-                              {match.statistics.shotsOnTarget && (
-                                <div className="text-center">
-                                  <div className="text-muted-foreground mb-1">
-                                    On Target
-                                  </div>
-                                  <div className="font-semibold">
-                                    {match.statistics.shotsOnTarget.home} -{" "}
-                                    {match.statistics.shotsOnTarget.away}
-                                  </div>
-                                </div>
-                              )}
-                              {match.statistics.corners && (
-                                <div className="text-center">
-                                  <div className="text-muted-foreground mb-1">
-                                    Corners
-                                  </div>
-                                  <div className="font-semibold">
-                                    {match.statistics.corners.home} -{" "}
-                                    {match.statistics.corners.away}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        <div className="text-sm text-muted-foreground">
+                          {prediction.league} • {prediction.homeTeam.name} vs{" "}
+                          {prediction.awayTeam.name}
+                        </div>
+                        <div className="text-sm">
+                          Predicted: {prediction.predictedOutcome} • Odds:{" "}
+                          {prediction.odds}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -688,7 +512,7 @@ export default function AnalyticsPage() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{league.league}</span>
                           <span className="text-sm text-muted-foreground">
-                            {league.matches} matches
+                            {league.predictions} predictions
                           </span>
                         </div>
                         <div className="flex items-center gap-4">
@@ -696,12 +520,12 @@ export default function AnalyticsPage() {
                             <div
                               className="bg-primary h-full rounded-full"
                               style={{
-                                width: `${(league.avgGoals / 5) * 100}%`,
+                                width: `${league.successRate}%`,
                               }}
                             />
                           </div>
                           <span className="text-sm font-semibold w-16 text-right">
-                            {league.avgGoals.toFixed(1)} goals/match
+                            {league.successRate.toFixed(1)}% success
                           </span>
                         </div>
                       </div>
@@ -768,7 +592,7 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Top Form Teams
+                  Top Performing Teams
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -794,20 +618,11 @@ export default function AnalyticsPage() {
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <div className="flex gap-1">
-                          {team.form.split("").map((result, i) => (
-                            <div
-                              key={i}
-                              className={`w-6 h-6 rounded-sm flex items-center justify-center text-xs font-bold text-white ${getFormColor(
-                                result
-                              )}`}
-                            >
-                              {result}
-                            </div>
-                          ))}
+                        <div className="text-sm text-muted-foreground">
+                          {team.correct} correct / {team.total} predictions
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {team.wins}W {team.draws}D {team.losses}L
+                        <span className="text-sm font-semibold">
+                          {team.successRate.toFixed(1)}% success
                         </span>
                       </div>
                     </div>
@@ -845,22 +660,22 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Recent Matches Table */}
+        {/* Recent Predictions Table */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Today&apos;s Matches
+              Recent Predictions
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">
-                Loading matches...
+                Loading predictions...
               </div>
-            ) : matches.length === 0 ? (
+            ) : predictions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No matches scheduled
+                No predictions available
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -868,7 +683,7 @@ export default function AnalyticsPage() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                        Time
+                        Date
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
                         League
@@ -877,89 +692,63 @@ export default function AnalyticsPage() {
                         Match
                       </th>
                       <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                        Possession
+                        Prediction
                       </th>
                       <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                        Score
+                        Odds
                       </th>
                       <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                        Status
+                        Result
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {matches.slice(0, 15).map((match) => (
+                    {predictions.slice(0, 15).map((prediction) => (
                       <tr
-                        key={match.id}
+                        key={prediction.id}
                         className="border-b border-border hover:bg-secondary/50 transition-colors"
                       >
                         <td className="py-3 px-4 text-sm">
-                          {new Date(match.scheduledAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {new Date(prediction.matchDate).toLocaleDateString(
+                            "en-US",
+                            {
+                              timeZone: "UTC",
+                              month: "short",
+                              day: "numeric",
+                              weekday: "short",
+                            }
+                          )}
                         </td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {match.league?.name || "N/A"}
+                          {prediction.league}
                         </td>
                         <td className="py-3 px-4 text-sm">
                           <div className="flex items-center gap-2">
-                            {match.homeTeamLogo && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={match.homeTeamLogo}
-                                alt={match.homeTeam}
-                                className="h-4 w-4 object-contain"
-                              />
-                            )}
-                            {match.homeTeam}
+                            {prediction.homeTeam.name}
                           </div>
                           <div className="text-muted-foreground flex items-center gap-2">
-                            {match.awayTeamLogo && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={match.awayTeamLogo}
-                                alt={match.awayTeam}
-                                className="h-4 w-4 object-contain"
-                              />
-                            )}
-                            {match.awayTeam}
+                            {prediction.awayTeam.name}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-center text-xs">
-                          {match.statistics?.possession ? (
-                            <span className="font-medium">
-                              {match.statistics.possession.home}% /{" "}
-                              {match.statistics.possession.away}%
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                        <td className="py-3 px-4 text-center text-sm">
+                          {prediction.predictedOutcome}
                         </td>
                         <td className="py-3 px-4 text-center font-semibold">
-                          {match.status === "finished" ||
-                          match.status === "live" ? (
-                            <div>
-                              {match.homeTeamScore ?? 0} -{" "}
-                              {match.awayTeamScore ?? 0}
-                            </div>
-                          ) : (
-                            <div className="text-muted-foreground">vs</div>
-                          )}
+                          {prediction.odds}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span
                             className={`text-xs px-2 py-1 rounded-full ${
-                              match.status === "live"
-                                ? "bg-primary text-primary-foreground"
-                                : match.status === "finished"
-                                ? "bg-secondary text-secondary-foreground"
-                                : "bg-muted text-muted-foreground"
+                              prediction.result === "won"
+                                ? "bg-green-500 text-white"
+                                : prediction.result === "lost"
+                                ? "bg-red-500 text-white"
+                                : prediction.result === "void"
+                                ? "bg-gray-500 text-white"
+                                : "bg-yellow-500 text-white"
                             }`}
                           >
-                            {match.status === "live" && match.minute
-                              ? `${match.minute}&apos;`
-                              : match.status.toUpperCase()}
+                            {prediction.result?.toUpperCase() || "PENDING"}
                           </span>
                         </td>
                       </tr>

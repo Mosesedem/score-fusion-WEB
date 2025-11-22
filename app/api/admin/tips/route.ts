@@ -17,16 +17,16 @@ const tipSchema = z.object({
   // Team relations for predictions
   homeTeamId: z.string().uuid().optional(),
   awayTeamId: z.string().uuid().optional(),
-  predictionType: z
-    .enum([
-      "winner",
-      "over_under",
-      "both_teams_score",
-      "correct_score",
-      "handicap",
-      "other",
-    ])
-    .optional(), // Match Prisma PredictionType enum
+  // predictionType: z
+  //   .enum([
+  //     "winner",
+  //     "over_under",
+  //     "both_teams_score",
+  //     "correct_score",
+  //     "handicap",
+  //     "other",
+  //   ])
+  //   .optional(), // Match Prisma PredictionType enum
   predictedOutcome: z.string().optional(), // home_win, draw, away_win, over, under, yes, no
   // Ticket snapshots (up to 10)
   ticketSnapshots: z
@@ -44,6 +44,9 @@ const tipSchema = z.object({
     .enum(["draft", "scheduled", "published", "archived"])
     .default("draft"),
   result: z.enum(["won", "lost", "void", "pending"]).optional(),
+  category: z.enum(["tip", "update"]).default("tip"),
+  confidenceLevel: z.number().min(1).max(100).optional(),
+  matchResult: z.string().optional(),
 });
 
 // Query schema
@@ -217,13 +220,13 @@ export async function GET(request: NextRequest) {
       sport: string;
       league: string | null;
       matchId: string | null;
-      matchDate: Date | null;
+      matchDate: string | null;
       homeTeamId: string | null;
       awayTeamId: string | null;
       predictionType: string | null;
       predictedOutcome: string | null;
       ticketSnapshots: string[];
-      publishAt: Date;
+      publishAt: string | null;
       isVIP: boolean;
       featured: boolean;
       authorId: string | null;
@@ -243,8 +246,11 @@ export async function GET(request: NextRequest) {
       match: Match | null;
       homeTeam: TeamInfo | null;
       awayTeam: TeamInfo | null;
+      category: string;
+      confidenceLevel: number | null;
+      matchResult: string | null;
+      createdAt: string;
     }
-
     interface BetMetrics {
       totalBets: number;
       betWinRate: number;
@@ -293,6 +299,12 @@ export async function GET(request: NextRequest) {
                   scheduledAt: tip.match.scheduledAt,
                 }
               : null,
+          category: tip.category,
+          confidenceLevel: tip.confidenceLevel,
+          matchResult: tip.matchResult,
+          createdAt: tip.createdAt.toISOString(),
+          publishAt: tip.publishAt?.toISOString() || null,
+          matchDate: tip.matchDate?.toISOString() || null,
         };
       }
     );

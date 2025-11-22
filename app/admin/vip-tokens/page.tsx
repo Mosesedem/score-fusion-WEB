@@ -86,7 +86,7 @@ export default function AdminVIPTokensPage() {
   const itemsPerPage = 10;
   const [editingToken, setEditingToken] = useState<VIPToken | null>(null);
   const [editForm, setEditForm] = useState({
-    userId: "",
+    userId: "unassigned",
     expirationDays: "",
     quantity: "",
     used: "",
@@ -163,14 +163,7 @@ export default function AdminVIPTokensPage() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.userId) {
-      setAlertDialog({
-        open: true,
-        title: "User Required",
-        message: "Please select a user to generate tokens for.",
-      });
-      return;
-    }
+    // Allow userId to be optional — admin may generate generic (unassigned) tokens
 
     setGeneratingTokens(true);
     try {
@@ -178,7 +171,11 @@ export default function AdminVIPTokensPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: formData.userId,
+          // treat empty string or 'unassigned' as null to indicate a generic/unassigned token
+          userId:
+            formData.userId === "" || formData.userId === "unassigned"
+              ? null
+              : formData.userId,
           quantity: parseInt(formData.quantity),
           expirationDays: parseInt(formData.expirationDays),
           reason: formData.reason || "Admin generated VIP access",
@@ -192,9 +189,14 @@ export default function AdminVIPTokensPage() {
         setAlertDialog({
           open: true,
           title: "Success",
-          message: `Successfully generated ${formData.quantity} VIP token${
-            parseInt(formData.quantity) > 1 ? "s" : ""
-          }! Email sent to user.`,
+          message:
+            formData.userId && formData.userId !== "unassigned"
+              ? `Successfully generated ${formData.quantity} VIP token${
+                  parseInt(formData.quantity) > 1 ? "s" : ""
+                }! Email sent to user.`
+              : `Successfully generated ${formData.quantity} generic VIP token${
+                  parseInt(formData.quantity) > 1 ? "s" : ""
+                }! These are unassigned PINs ready to be redeemed.`,
         });
         setShowForm(false);
         setFormData({
@@ -490,11 +492,17 @@ export default function AdminVIPTokensPage() {
                     onValueChange={(value) =>
                       setFormData({ ...formData, userId: value })
                     }
+                    defaultValue="unassigned"
                   >
                     <SelectTrigger id="userId">
                       <SelectValue placeholder="Choose a user..." />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="unassigned">
+                        <div className="flex items-center gap-2">
+                          Generic / Unassigned
+                        </div>
+                      </SelectItem>
                       {users.map((u) => (
                         <SelectItem key={u.id} value={u.id}>
                           <div className="flex items-center gap-2">
@@ -505,12 +513,20 @@ export default function AdminVIPTokensPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <Mail className="h-3 w-3 inline mr-1" />
-                    An email with the PIN
-                    {parseInt(formData.quantity) > 1 ? "s" : ""} will be sent to
-                    the user
-                  </p>
+                  {formData.userId && formData.userId !== "unassigned" ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <Mail className="h-3 w-3 inline mr-1" />
+                      An email with the PIN
+                      {parseInt(formData.quantity) > 1 ? "s" : ""} will be sent
+                      to the selected user
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <Mail className="h-3 w-3 inline mr-1" />
+                      Tokens will be generated as generic / unassigned PINs — no
+                      email will be sent
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-4">

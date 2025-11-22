@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUser } from "@/lib/auth";
+import { hasTipAccess } from "@/lib/vip-access";
 
 export async function GET(
   request: NextRequest,
@@ -46,6 +47,16 @@ export async function GET(
         viewCount: true,
         successRate: true,
         result: true,
+        matchResult: true,
+        tipResult: {
+          select: {
+            id: true,
+            settledAt: true,
+            outcome: true,
+            payout: true,
+            createdAt: true,
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },
@@ -58,12 +69,48 @@ export async function GET(
       );
     }
 
-    // Check if prediction is published
-    if (tip.status !== "published" || tip.publishAt > new Date()) {
+    // Check if prediction is published and has a valid publishAt
+    if (
+      tip.status !== "published" ||
+      !tip.publishAt ||
+      tip.publishAt > new Date()
+    ) {
       return NextResponse.json(
         { success: false, error: "Prediction not available" },
-        { status: 403 }
+        { status: 404 }
       );
+    }
+
+    // VIP access control
+    let hasVipAccess = true;
+    if (tip.isVIP) {
+      if (!auth.user) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Authentication required for VIP content",
+          },
+          { status: 401 }
+        );
+      }
+
+      if (auth.user.guest) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "VIP content not available for guest users",
+          },
+          { status: 403 }
+        );
+      }
+
+      hasVipAccess = await hasTipAccess(auth.user.id, id);
+      if (!hasVipAccess) {
+        return NextResponse.json(
+          { success: false, error: "VIP subscription or token required" },
+          { status: 403 }
+        );
+      }
     }
 
     // Increment view count
@@ -96,7 +143,7 @@ export async function GET(
       success: true,
       data: {
         prediction: tip,
-        hasVipAccess: true,
+        hasVipAccess,
       },
     });
   } catch (error) {

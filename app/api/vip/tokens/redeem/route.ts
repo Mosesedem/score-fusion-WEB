@@ -6,7 +6,11 @@ import { rateLimit } from "@/lib/redis";
 
 // Validation schema
 const redeemTokenSchema = z.object({
-  token: z.string().min(1, "Token is required"),
+  token: z
+    .string()
+    .min(6, "Token must be at least 6 characters")
+    .max(7, "Token must be 6 or 7 characters")
+    .regex(/^[A-Za-z0-9]+$/, "Token must be alphanumeric"),
 });
 
 export async function POST(request: NextRequest) {
@@ -40,8 +44,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Validate input
+    // Validate input and normalize
     const validatedData = redeemTokenSchema.parse(body);
+    validatedData.token = validatedData.token.trim().toUpperCase();
 
     // Use transaction to prevent race conditions
     interface VIPTokenWithTip {
@@ -80,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const result: UpdatedToken = await prisma.$transaction(
       async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
-        // Find the token
+        // Find the token (case-insensitive - tokens are stored uppercase)
         const vipToken: VIPTokenWithTip | null = await tx.vIPToken.findUnique({
           where: { token: validatedData.token },
           include: {
@@ -124,8 +129,8 @@ export async function POST(request: NextRequest) {
           where: { id: vipToken.id },
           data: {
             userId: session.user.id, // Assign to user if not already assigned
-            used: vipToken.used + 1,
-            usedAt: new Date(),
+            // used: vipToken.used + 1,
+            // usedAt: new Date(),
           },
         });
 

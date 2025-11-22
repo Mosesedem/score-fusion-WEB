@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { UserEngagement } from "@/components/user-engagement";
-
+import Image from "next/image";
 interface Prediction {
   id: string;
   title: string;
@@ -102,7 +102,7 @@ export default function DashboardPage() {
 
         // Fetch predictions - VIP if user has access, otherwise free
         const predictionsRes = await api.get(
-          `/predictions?vip=${vipStatus}&limit=3&today=true`
+          `/predictions?vip=false&limit=3&today=true`
         );
 
         if (predictionsRes.success) {
@@ -112,7 +112,9 @@ export default function DashboardPage() {
           setPredictions(predictionsData.predictions);
         } else if (vipStatus && !user?.guest) {
           // If VIP predictions fail, fallback to free predictions
-          const freeRes = await api.get("/predictions?vip=false&limit=3");
+          const freeRes = await api.get(
+            "/predictions?vip=false&limit=3&today=true"
+          );
           if (freeRes.success) {
             const freeData = freeRes.data as { predictions: Prediction[] };
             setPredictions(freeData.predictions);
@@ -195,104 +197,25 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats Grid - Enhanced with real data and engagement */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <Link href="/history">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full relative group">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
-                  {derivedWinRate !== null && derivedWinRate > 60 && (
-                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
-                  )}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold mb-0.5">
-                  {derivedWinRate !== null
-                    ? `${derivedWinRate.toFixed(1)}%`
-                    : "—"}
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Win Rate
-                </p>
-                {userStats.correctPredictions > 0 && (
-                  <p className="text-[8px] sm:text-[10px] text-green-600 mt-1">
-                    {userStats.correctPredictions} correct
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href={isVIP ? "/vip" : "/subscriptions"}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full relative group">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-                  {!isVIP && (
-                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full animate-bounce" />
-                  )}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold mb-0.5">
-                  ${userStats.totalEarnings.toFixed(0)}
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  {isVIP ? "Earned" : "Potential"}
-                </p>
-                {!isVIP && (
-                  <p className="text-[8px] sm:text-[10px] text-primary mt-1">
-                    Upgrade to earn
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/tips">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full relative">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 " />
-                  {predictions.length > 5 && (
-                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full animate-pulse" />
-                  )}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold mb-0.5">
-                  {predictions.length}
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Tips Today
-                </p>
-                {userStats.streakDays > 0 && (
-                  <p className="text-[8px] sm:text-[10px]  mt-1">
-                    {userStats.streakDays} day streak
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/livescores">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full relative">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-                  {liveMatches.length > 0 && (
-                    <div className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
-                  )}
-                </div>
-                <div className="text-xl sm:text-2xl font-bold mb-0.5">
-                  {liveMatches.length}
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Live Now
-                </p>
-                {liveMatches.length > 0 && (
-                  <p className="text-[8px] sm:text-[10px] text-red-600 mt-1">
-                    Matches active
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
+        <div className="flex mb-4 relative sm:mb-6 h-48 md:h-64 w-full">
+          {!isVIP || user?.guest ? (
+            <Image
+              src="/images/do.gif"
+              alt="Free Banner"
+              // width={240}
+              // height={40}
+              fill
+              className="object-cover rounded-lg"
+              // className="object-contain"
+            />
+          ) : (
+            <Image
+              src="/images/do.gif"
+              alt="VIP Banner"
+              fill
+              className="object-cover rounded-lg"
+            />
+          )}
         </div>
 
         {/* Main Content */}
@@ -301,8 +224,9 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-                {isVIP && <Crown className="h-4 w-4 text-amber-500" />}
-                {isVIP ? "VIP Tips" : "Today's Tips"}
+                {/* {isVIP && <Crown className="h-4 w-4 text-amber-500" />}
+                {isVIP ? "VIP Tips" : "Today's Tips"} */}
+                Today's Tips
               </h2>
               <Link
                 href="/tips"
@@ -382,7 +306,25 @@ export default function DashboardPage() {
                             <span className="truncate">{pred.league}</span>
                           )}
                         </div>
-
+                        <div className="flex items-center justify-center gap-2 text-[14px] sm:text-xs text-muted-foreground mb-2">
+                          {pred.matchDate && (
+                            <span className="truncate">
+                              {" "}
+                              {new Date(pred.matchDate).toLocaleString(
+                                "en-US",
+                                {
+                                  timeZone: "UTC",
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                }
+                              )}
+                            </span>
+                          )}
+                        </div>
                         {/* Prediction Summary */}
                         <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">
                           {pred.summary}
@@ -402,9 +344,10 @@ export default function DashboardPage() {
                           )}
                           {pred.odds && (
                             <div className="px-2 py-1 bg-primary/10 text-primary rounded font-bold text-xs sm:text-sm">
-                              Odds: {pred.odds}
+                              Odds: {Number(pred.odds).toFixed(2)}
                             </div>
                           )}
+
                           {pred.isVIP && (
                             <Crown className="h-4 w-4 text-amber-500" />
                           )}
@@ -422,68 +365,6 @@ export default function DashboardPage() {
                   <p className="text-xs mt-1">Check back soon for new tips</p>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Live Matches */}
-            {liveMatches.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-                    <span className="h-2 w-2 bg-red-500 rounded-full animate-pulse" />
-                    Live Now
-                  </h2>
-                  <Link
-                    href="/livescores"
-                    className="text-xs sm:text-sm text-primary hover:underline font-medium"
-                  >
-                    View All →
-                  </Link>
-                </div>
-
-                <div className="space-y-3">
-                  {liveMatches.slice(0, 3).map((match) => (
-                    <Link
-                      key={match.id}
-                      href={`/livescores?match=${match.id}`}
-                      className="block"
-                    >
-                      <Card className="hover:shadow-lg transition-all hover:border-red-500/50">
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="text-[10px] sm:text-xs text-muted-foreground truncate flex-1">
-                              {match.league.name}
-                            </div>
-                            {match.minute && (
-                              <div className="flex items-center gap-1 text-xs font-bold text-red-500 ml-2">
-                                <span className="h-1.5 w-1.5 bg-red-500 rounded-full animate-pulse" />
-                                {match.minute}&apos;
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm sm:text-base font-medium truncate flex-1">
-                                {match.homeTeam}
-                              </span>
-                              <span className="text-lg sm:text-xl font-bold ml-2">
-                                {match.homeTeamScore}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm sm:text-base font-medium truncate flex-1">
-                                {match.awayTeam}
-                              </span>
-                              <span className="text-lg sm:text-xl font-bold ml-2">
-                                {match.awayTeamScore}
-                              </span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
-                </div>
-              </div>
             )}
           </div>
 
@@ -601,19 +482,14 @@ export default function DashboardPage() {
                     </button>
                   </Link>
                 )}
-                <Link href="/livescores" className="block">
+                <Link href="/history" className="block">
                   <button className="w-full text-left border-2 border-border py-2.5 px-3 rounded-lg hover:bg-accent transition-colors text-xs sm:text-sm font-medium relative">
-                    ⚡ Live Scores
-                    {liveMatches.length > 0 && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
-                        LIVE
-                      </span>
-                    )}
+                    ✅ ⏰ History
                   </button>
                 </Link>
-                <Link href="/referral" className="block">
+                <Link href="/contact" className="block">
                   <button className="w-full text-left border-2 border-border py-2.5 px-3 rounded-lg hover:bg-accent transition-colors text-xs sm:text-sm font-medium">
-                    🎁 Refer & Earn
+                    ☎ Contact Us
                   </button>
                 </Link>
               </CardContent>

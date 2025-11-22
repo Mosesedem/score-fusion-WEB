@@ -107,10 +107,11 @@ model Tip {
   awayTeam         Team?             @relation("AwayTips", fields: [awayTeamId], references: [id], onDelete: SetNull)
   predictionType   PredictionType? // winner, over_under, both_teams_score, etc.
   predictedOutcome String? // home_win, draw, away_win, over, under, yes, no, etc.
+  matchResult      String            @default("Pending")
   confidenceLevel  Int? // confidence level in prediction (1-100%)
   // Ticket snapshots for morale boosting (up to 10)
   ticketSnapshots  String[] // URLs to betting ticket images
-  publishAt        DateTime
+  publishAt        DateTime?         @default(now()) // scheduled publish date
   isVIP            Boolean           @default(false)
   category         TipCategory       @default(tip) // tip, update
   featured         Boolean           @default(false)
@@ -220,7 +221,7 @@ model Subscription {
 
 model VIPToken {
   id        String    @id @default(uuid())
-  token     String    @unique @default(cuid()) // cryptographically random
+  token     String    @unique @db.VarChar(7) // 6-7 char PIN/code (alphanumeric)
   userId    String?
   tipId     String? // null = general access, specific tip ID = single tip access
   type      String    @default("general") // general, single, bundle

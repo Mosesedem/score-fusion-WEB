@@ -78,7 +78,7 @@ export function AppNavbar() {
     { href: "/", label: "Home", icon: Home },
     { href: "/vip", label: "VIP", icon: Crown },
     { href: "/tips", label: "Tips", icon: TrendingUp },
-    { href: "/livescores", label: "Live Scores", icon: Activity },
+    // { href: "/livescores", label: "Live Scores", icon: Activity },
     { href: "/blog", label: "Blog", icon: BookOpen },
     { href: "/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/help", label: "Help", icon: HelpCircle },

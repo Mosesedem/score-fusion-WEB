@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentSession } from "@/lib/session";
 import { cacheHelpers } from "@/lib/redis";
 import { hasVIPAccess } from "@/lib/vip-access";
+import { Prisma } from "@prisma/client";
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -21,6 +22,10 @@ const predictionsQuerySchema = z.object({
   limit: z.string().transform(Number).default("20"),
   sport: z.string().optional(),
   vip: z
+    .string()
+    .transform((val) => val === "true")
+    .default("false"),
+  history: z
     .string()
     .transform((val) => val === "true")
     .default("false"),
@@ -49,6 +54,7 @@ export async function GET(request: NextRequest) {
     const cacheKey = `predictions:${JSON.stringify({
       ...validatedQuery,
       vip: validatedQuery.vip ? "vip" : "public",
+      history: validatedQuery.history ? "history" : "current",
     })}`;
 
     if (!validatedQuery.vip) {
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     const session = await getCurrentSession();
 
-    if (validatedQuery.vip) {
+    if (validatedQuery.vip && !validatedQuery.history) {
       if (!session || !session.user) {
         return NextResponse.json(
           { success: false, error: "Authentication required for VIP content" },
@@ -90,28 +96,25 @@ export async function GET(request: NextRequest) {
       tipViewLimit = 10;
     }
 
-    interface Where {
-      status: "published";
-      publishAt: { lte: Date };
-      sport?: { mode: "insensitive"; equals: string };
-      featured?: boolean;
-      isVIP: boolean;
-      category?: "tip" | "update";
-      OR?: Array<
-        | { title: { mode: "insensitive"; contains: string } }
-        | { content: { mode: "insensitive"; contains: string } }
-        | { summary: { mode: "insensitive"; contains: string } }
-        | { tags: { hasSome: string[] } }
-      >;
-      tags?: { hasSome: string[] };
-      matchDate?: { gte: Date } | { lt: Date };
-    }
-
-    const where: Where = {
+    const where: Prisma.TipWhereInput = {
       status: "published",
       publishAt: { lte: new Date() },
-      isVIP: validatedQuery.vip ? true : false,
+      ...(validatedQuery.history
+        ? {}
+        : { isVIP: validatedQuery.vip ? true : false }),
     };
+
+    // Filter for historical predictions if requested
+    if (validatedQuery.history) {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      where.OR = [
+        {
+          AND: [{ result: { not: null } }, { result: { not: "pending" } }],
+        },
+        { matchDate: { lt: twoHoursAgo } },
+      ];
+    }
 
     // Filter to today's matches if requested
     if (validatedQuery.today) {
@@ -130,12 +133,32 @@ export async function GET(request: NextRequest) {
     // isVIP already set in initial object
 
     if (validatedQuery.search) {
-      where.OR = [
-        { title: { mode: "insensitive", contains: validatedQuery.search } },
-        { content: { mode: "insensitive", contains: validatedQuery.search } },
-        { summary: { mode: "insensitive", contains: validatedQuery.search } },
+      const searchOR = [
+        {
+          title: {
+            mode: "insensitive" as const,
+            contains: validatedQuery.search,
+          },
+        },
+        {
+          content: {
+            mode: "insensitive" as const,
+            contains: validatedQuery.search,
+          },
+        },
+        {
+          summary: {
+            mode: "insensitive" as const,
+            contains: validatedQuery.search,
+          },
+        },
         { tags: { hasSome: [validatedQuery.search] } },
       ];
+      if (where.OR) {
+        where.OR = [...where.OR, ...searchOR];
+      } else {
+        where.OR = searchOR;
+      }
     }
     if (validatedQuery.tags && validatedQuery.tags.length > 0) {
       where.tags = { hasSome: validatedQuery.tags };
@@ -190,6 +213,7 @@ export async function GET(request: NextRequest) {
           viewCount: true,
           successRate: true,
           result: true,
+          matchResult: true,
           createdAt: true,
           updatedAt: true,
         },

@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Crown,
   Lock,
@@ -14,8 +13,10 @@ import {
   TrendingUp,
   CheckCircle,
   Target,
+  Calendar,
+  Loader2,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 export default function VIPAreaPage() {
@@ -23,8 +24,25 @@ export default function VIPAreaPage() {
   const api = useApiClient();
   const [hasVIPAccess, setHasVIPAccess] = useState(false);
   const [loading, setLoading] = useState(true);
+  type TokenAccess = {
+    expiresAt: string;
+    remaining: number;
+    type: string;
+  } | null;
+  type SubscriptionData = {
+    plan: string;
+    status: string;
+    currentPeriodEnd: string;
+    cancelAtPeriodEnd: boolean;
+  } | null;
+
+  const [entitlements, setEntitlements] = useState<{
+    subscription: SubscriptionData;
+    tokenAccess: TokenAccess;
+  } | null>(null);
   const [tokenCode, setTokenCode] = useState("");
   const [tokenError, setTokenError] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
   const [vipPredictions, setVipPredictions] = useState<
     Array<{
       id: string;
@@ -37,11 +55,20 @@ export default function VIPAreaPage() {
       homeTeam?: { name: string; logoUrl?: string };
       awayTeam?: { name: string; logoUrl?: string };
       predictedOutcome?: string;
+      confidenceLevel?: number;
       ticketSnapshots: string[];
       result?: string;
       matchDate?: string;
       createdAt: string;
       category: "tip" | "update";
+      matchResult?: string;
+      tipResult?: {
+        id: string;
+        settledAt: string;
+        outcome: string;
+        payout?: number;
+        createdAt: string;
+      };
     }>
   >([]);
   const [vipUpdates, setVipUpdates] = useState<
@@ -56,11 +83,20 @@ export default function VIPAreaPage() {
       homeTeam?: { name: string; logoUrl?: string };
       awayTeam?: { name: string; logoUrl?: string };
       predictedOutcome?: string;
+      confidenceLevel?: number;
       ticketSnapshots: string[];
       result?: string;
       matchDate?: string;
       createdAt: string;
       category: "tip" | "update";
+      matchResult?: string;
+      tipResult?: {
+        id: string;
+        settledAt: string;
+        outcome: string;
+        payout?: number;
+        createdAt: string;
+      };
     }>
   >([]);
   const [historyPredictions, setHistoryPredictions] = useState<
@@ -70,6 +106,48 @@ export default function VIPAreaPage() {
   const [loadingPredictions, setLoadingPredictions] = useState(false);
   const [loadingUpdates, setLoadingUpdates] = useState(false);
   const router = useRouter();
+  const [currentPagePredictions, setCurrentPagePredictions] = useState(1);
+  const [currentPageUpdates, setCurrentPageUpdates] = useState(1);
+  const [currentPageHistoryPredictions, setCurrentPageHistoryPredictions] =
+    useState(1);
+  const [currentPageHistoryUpdates, setCurrentPageHistoryUpdates] = useState(1);
+  const itemsPerPage = 12;
+
+  const displayedVipPredictions = useMemo(
+    () =>
+      vipPredictions.slice(
+        (currentPagePredictions - 1) * itemsPerPage,
+        currentPagePredictions * itemsPerPage
+      ),
+    [vipPredictions, currentPagePredictions]
+  );
+
+  const displayedVipUpdates = useMemo(
+    () =>
+      vipUpdates.slice(
+        (currentPageUpdates - 1) * itemsPerPage,
+        currentPageUpdates * itemsPerPage
+      ),
+    [vipUpdates, currentPageUpdates]
+  );
+
+  const displayedHistoryPredictions = useMemo(
+    () =>
+      historyPredictions.slice(
+        (currentPageHistoryPredictions - 1) * itemsPerPage,
+        currentPageHistoryPredictions * itemsPerPage
+      ),
+    [historyPredictions, currentPageHistoryPredictions]
+  );
+
+  const displayedHistoryUpdates = useMemo(
+    () =>
+      historyUpdates.slice(
+        (currentPageHistoryUpdates - 1) * itemsPerPage,
+        currentPageHistoryUpdates * itemsPerPage
+      ),
+    [historyUpdates, currentPageHistoryUpdates]
+  );
   const checkVIPAccess = useCallback(async () => {
     console.log("🔍 [VIP Page] Starting VIP access check...");
     console.log("🔍 [VIP Page] Current user:", user);
@@ -87,11 +165,20 @@ export default function VIPAreaPage() {
       });
 
       if (res.success) {
-        const data = res.data as { hasAccess: boolean };
-        console.log("🔍 [VIP Page] Parsed data:", data);
-        console.log("🔍 [VIP Page] hasAccess value:", data.hasAccess);
+        // /api/vip/status returns { success: true, data: { hasAccess, subscription, tokenAccess } }
+        const data = res.data as {
+          hasAccess: boolean;
+          subscription?: SubscriptionData | null;
+          tokenAccess?: TokenAccess | null;
+        };
 
-        setHasVIPAccess(data.hasAccess);
+        console.log("🔍 [VIP Page] Parsed data:", data);
+
+        setHasVIPAccess(Boolean(data.hasAccess));
+        setEntitlements({
+          subscription: data.subscription ?? null,
+          tokenAccess: data.tokenAccess ?? null,
+        });
 
         if (data.hasAccess) {
           console.log("✅ [VIP Page] VIP ACCESS GRANTED!");
@@ -105,12 +192,9 @@ export default function VIPAreaPage() {
       console.error("❌ [VIP Page] Error checking VIP access:", error);
     } finally {
       setLoading(false);
-      console.log(
-        "🔍 [VIP Page] VIP access check complete. hasVIPAccess =",
-        hasVIPAccess
-      );
+      console.log("🔍 [VIP Page] VIP access check complete.");
     }
-  }, [api, user, hasVIPAccess]);
+  }, [api, user]);
 
   const fetchVIPPredictions = useCallback(async () => {
     setLoadingPredictions(true);
@@ -168,6 +252,15 @@ export default function VIPAreaPage() {
 
   useEffect(() => {
     console.log("🔄 [VIP Page] User effect triggered. User:", user);
+    // Only run check when we have a user object and it's not a guest placeholder
+    if (!user || user.guest) {
+      // If no authenticated user, clear out entitlements and stop loading
+      setHasVIPAccess(false);
+      setEntitlements(null);
+      setLoading(false);
+      return;
+    }
+
     checkVIPAccess();
   }, [user, checkVIPAccess]);
 
@@ -190,20 +283,61 @@ export default function VIPAreaPage() {
   const handleTokenRedeem = async (e: React.FormEvent) => {
     e.preventDefault();
     setTokenError("");
+    // Ensure user is authenticated (page shows login CTA when no user)
+    if (!user) {
+      setTokenError("You need to be signed in to redeem tokens");
+      return;
+    }
 
+    setRedeeming(true);
     try {
+      const normalized = tokenCode.trim().toUpperCase();
+
       const res = await api.post("/vip/tokens/redeem", {
-        token: tokenCode,
+        token: normalized,
       });
 
       if (res.success) {
+        // Refresh entitlements and predictions and show immediate access
         setHasVIPAccess(true);
         setTokenCode("");
+        setTokenError("");
+
+        // If the response provides remainingUses, update entitlements tokenAccess
+        if (res.data) {
+          const redeemData = res.data as {
+            tokenId?: string;
+            type?: string;
+            remainingUses?: number;
+            expiresAt?: string;
+          };
+
+          setEntitlements((prev) => ({
+            subscription: prev?.subscription ?? null,
+            tokenAccess:
+              redeemData && redeemData.remainingUses !== undefined
+                ? {
+                    expiresAt: String(
+                      redeemData.expiresAt ?? new Date().toISOString()
+                    ),
+                    remaining: Number(redeemData.remainingUses ?? 0),
+                    type: String(redeemData.type ?? "general"),
+                  }
+                : prev?.tokenAccess ?? null,
+          }));
+        }
+
+        // Refresh entitlements and predictions
+        await checkVIPAccess();
+        await fetchVIPPredictions();
       } else {
         setTokenError(res.error || "Invalid token code");
       }
-    } catch {
+    } catch (err) {
+      console.error("Redeem failed:", err);
       setTokenError("Failed to redeem token. Please try again.");
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -305,7 +439,7 @@ export default function VIPAreaPage() {
                           BEST VALUE
                         </div>
                         <h4 className="font-bold text-sm md:text-base">
-                          Yearly
+                          Monthly
                         </h4>
                         <p className="text-xl md:text-2xl font-bold text-primary">
                           € 400.00/month
@@ -317,7 +451,6 @@ export default function VIPAreaPage() {
                           <li>✓ All VIP tips & updates</li>
                           <li>✓ Correct score predictions</li>
                           <li>✓ Priority support</li>
-                          <li>✓ 2 months free</li>
                         </ul>
                         <Button className="w-full mt-4 h-10 text-sm md:text-base">
                           Subscribe Monthly
@@ -355,7 +488,14 @@ export default function VIPAreaPage() {
                       <Input
                         placeholder="Enter your VIP token code"
                         value={tokenCode}
-                        onChange={(e) => setTokenCode(e.target.value)}
+                        onChange={(e) =>
+                          setTokenCode(
+                            e.target.value
+                              .toUpperCase()
+                              .replace(/[^A-Z0-9]/gi, "")
+                              .slice(0, 7)
+                          )
+                        }
                         className="text-center font-mono h-11 md:h-10 text-base"
                         required
                       />
@@ -364,13 +504,37 @@ export default function VIPAreaPage() {
                           {tokenError}
                         </p>
                       )}
+
+                      {entitlements?.tokenAccess && (
+                        <p className="text-xs md:text-sm text-muted-foreground mt-2 text-center">
+                          You have {entitlements.tokenAccess.remaining} token
+                          use
+                          {entitlements.tokenAccess.remaining !== 1
+                            ? "s"
+                            : ""}{" "}
+                          remaining — expires{" "}
+                          {new Date(
+                            entitlements.tokenAccess.expiresAt
+                          ).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                     <Button
                       type="submit"
                       className="w-full h-10 text-sm md:text-base"
+                      disabled={redeeming}
                     >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Redeem Token
+                      {redeeming ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Redeeming...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Redeem Token
+                        </>
+                      )}
                     </Button>
                   </form>
                   <p className="text-xs text-muted-foreground text-center mt-4">
@@ -411,8 +575,8 @@ export default function VIPAreaPage() {
           <CardContent>
             {loadingPredictions ? (
               <div className="text-center py-12 text-muted-foreground">
-                <Crown className="h-16 w-16 mx-auto mb-4 opacity-50 animate-pulse" />
-                <p className="text-lg">Loading VIP predictions...</p>
+                <Loader2 className="animate-spin h-8 w-8 mx-auto mb-4" />
+                <p className="text-sm">Loading VIP predictions...</p>
               </div>
             ) : vipPredictions.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
@@ -423,111 +587,199 @@ export default function VIPAreaPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {vipPredictions.map((prediction) => (
-                  <Card key={prediction.id} className="border-2 border-primary">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-1.5 md:gap-2 mb-2 flex-wrap">
-                        <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                          {prediction.sport}
-                        </Badge>
-                        {prediction.league && (
-                          <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                            {prediction.league}
-                          </Badge>
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {displayedVipPredictions.map((prediction) => (
+                    <Card
+                      key={prediction.id}
+                      className="border-2 border-primary"
+                    >
+                      <CardContent className="p-4">
+                        <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
+                          {prediction.title}
+                        </h3>
+                        {(prediction.homeTeam || prediction.awayTeam) && (
+                          <div className="flex items-center justify-between mb-3 p-2 bg-secondary rounded">
+                            <div className="text-center flex-1">
+                              {prediction.homeTeam?.logoUrl && (
+                                <img
+                                  src={prediction.homeTeam.logoUrl}
+                                  alt={prediction.homeTeam.name}
+                                  className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                />
+                              )}
+                              <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                {prediction.homeTeam?.name}
+                              </p>
+                            </div>
+                            <div className="px-3 font-bold text-muted-foreground text-xs md:text-sm">
+                              VS
+                            </div>
+                            <div className="text-center flex-1">
+                              {prediction.awayTeam?.logoUrl && (
+                                <img
+                                  src={prediction.awayTeam.logoUrl}
+                                  alt={prediction.awayTeam.name}
+                                  className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                />
+                              )}
+                              <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                {prediction.awayTeam?.name}
+                              </p>
+                            </div>
+                          </div>
                         )}
-                        {prediction.result && (
-                          <Badge
-                            className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${
-                              prediction.result === "won"
-                                ? "bg-green-500 text-white"
-                                : prediction.result === "lost"
-                                ? "bg-red-500 text-white"
-                                : "bg-gray-500 text-white"
-                            }`}
+                        {prediction.matchResult && (
+                          <div className="text-center text-xs md:text-sm font-medium text-primary mb-3">
+                            {prediction.matchResult}
+                          </div>
+                        )}
+                        <div className="space-y-1 text-[10px] md:text-xs mb-3">
+                          {prediction.predictedOutcome && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Prediction:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {prediction.predictedOutcome}
+                              </span>
+                            </div>
+                          )}
+                          {prediction.confidenceLevel && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Confidence Level:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {prediction.confidenceLevel}%
+                              </span>
+                            </div>
+                          )}
+                          {prediction.result && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Result:{" "}
+                              </span>
+                              <span className="font-medium capitalize">
+                                {prediction.result}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {prediction.summary || prediction.content}
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          {prediction.odds && (
+                            <div>
+                              <div className="text-lg md:text-xl font-bold text-primary">
+                                {/* {prediction.odds} */}
+                                {Number(prediction.odds).toFixed(2)}
+                              </div>
+                              <div className="text-[10px] md:text-xs text-muted-foreground">
+                                Odds
+                              </div>
+                            </div>
+                          )}
+                          {prediction.predictedOutcome && (
+                            <div className="text-right">
+                              <div className="text-xs md:text-sm font-bold line-clamp-1">
+                                {prediction.predictedOutcome}
+                              </div>
+                              <div className="text-[10px] md:text-xs text-muted-foreground">
+                                Prediction
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground mb-3 gap-2">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
+                            <span className="truncate">
+                              {new Date(
+                                prediction.matchDate || prediction.createdAt
+                              ).toLocaleString("en-NG", {
+                                year: "numeric",
+                                timeZone: "UTC",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          {prediction.confidenceLevel && (
+                            <span className="truncate">
+                              Confidence Level:{prediction.confidenceLevel}
+                            </span>
+                          )}
+                        </div>
+                        {prediction.ticketSnapshots.length > 0 && (
+                          <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
+                            Ticket snapshots:{" "}
+                            {prediction.ticketSnapshots.length}
+                          </div>
+                        )}
+                        {prediction.result === "won" && (
+                          <div className="mb-3 flex justify-center">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 rounded-full">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Won
+                            </span>
+                          </div>
+                        )}
+                        <Link href={`/tips/${prediction.id}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-[10px] md:text-xs"
                           >
-                            {prediction.result.toUpperCase()}
-                          </Badge>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
-                        {prediction.title}
-                      </h3>
-                      {(prediction.homeTeam || prediction.awayTeam) && (
-                        <div className="flex items-center justify-between mb-3 p-2 bg-secondary rounded">
-                          <div className="text-center flex-1">
-                            {prediction.homeTeam?.logoUrl && (
-                              <img
-                                src={prediction.homeTeam.logoUrl}
-                                alt={prediction.homeTeam.name}
-                                className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
-                              />
-                            )}
-                            <p className="text-[10px] md:text-xs font-medium line-clamp-1">
-                              {prediction.homeTeam?.name}
-                            </p>
-                          </div>
-                          <div className="px-3 font-bold text-muted-foreground text-xs md:text-sm">
-                            VS
-                          </div>
-                          <div className="text-center flex-1">
-                            {prediction.awayTeam?.logoUrl && (
-                              <img
-                                src={prediction.awayTeam.logoUrl}
-                                alt={prediction.awayTeam.name}
-                                className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
-                              />
-                            )}
-                            <p className="text-[10px] md:text-xs font-medium line-clamp-1">
-                              {prediction.awayTeam?.name}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-xs md:text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {prediction.summary || prediction.content}
-                      </p>
-                      <div className="flex items-center justify-between mb-3">
-                        {prediction.odds && (
-                          <div>
-                            <div className="text-lg md:text-xl font-bold text-primary">
-                              {prediction.odds}
-                            </div>
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              Odds
-                            </div>
-                          </div>
-                        )}
-                        {prediction.predictedOutcome && (
-                          <div className="text-right">
-                            <div className="text-xs md:text-sm font-bold line-clamp-1">
-                              {prediction.predictedOutcome}
-                            </div>
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              Prediction
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {prediction.ticketSnapshots.length > 0 && (
-                        <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
-                          📊 {prediction.ticketSnapshots.length} ticket
-                          snapshot(s)
-                        </div>
-                      )}
-                      <Link href={`/tips/${prediction.id}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-[10px] md:text-xs"
-                        >
-                          <TrendingUp className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-                          View Details
-                        </Button>
-                      </Link>
-                    </CardContent>
-                  </Card>
-                ))}
+                            <TrendingUp className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
+                            View Details
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {vipPredictions.length > itemsPerPage && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPagePredictions(
+                          Math.max(1, currentPagePredictions - 1)
+                        )
+                      }
+                      disabled={currentPagePredictions === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {currentPagePredictions} of{" "}
+                      {Math.ceil(vipPredictions.length / itemsPerPage)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPagePredictions(
+                          Math.min(
+                            Math.ceil(vipPredictions.length / itemsPerPage),
+                            currentPagePredictions + 1
+                          )
+                        )
+                      }
+                      disabled={
+                        currentPagePredictions ===
+                        Math.ceil(vipPredictions.length / itemsPerPage)
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -548,117 +800,216 @@ export default function VIPAreaPage() {
           <CardContent>
             {loadingUpdates ? (
               <div className="text-center py-12 text-muted-foreground">
-                <Target className="h-16 w-16 mx-auto mb-4 opacity-50 animate-pulse" />
-                <p className="text-lg">Loading VIP updates...</p>
+                <Loader2 className="animate-spin h-8 w-8 mx-auto mb-4" />
+                <p className="text-sm">Loading VIP updates...</p>
               </div>
             ) : vipUpdates.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {vipUpdates.map((update) => (
-                  <Card key={update.id} className="border-2 border-purple-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-1.5 md:gap-2 mb-2 flex-wrap">
-                        <Badge className="bg-purple-500 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                          UPDATE
-                        </Badge>
-                        <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                          {update.sport}
-                        </Badge>
-                        {update.league && (
-                          <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                            {update.league}
-                          </Badge>
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {displayedVipUpdates.map((update) => (
+                    <Card
+                      key={update.id}
+                      className="border-2 border-purple-500"
+                    >
+                      <CardContent className="p-4">
+                        <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
+                          {update.title}
+                        </h3>
+                        {(update.homeTeam || update.awayTeam) && (
+                          <div className="flex items-center justify-between mb-3 p-2 bg-secondary rounded">
+                            <div className="text-center flex-1">
+                              {update.homeTeam?.logoUrl && (
+                                <img
+                                  src={update.homeTeam.logoUrl}
+                                  alt={update.homeTeam.name}
+                                  className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                />
+                              )}
+                              <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                {update.homeTeam?.name}
+                              </p>
+                            </div>
+                            <div className="px-3 font-bold text-muted-foreground text-xs md:text-sm">
+                              VS
+                            </div>
+                            <div className="text-center flex-1">
+                              {update.awayTeam?.logoUrl && (
+                                <img
+                                  src={update.awayTeam.logoUrl}
+                                  alt={update.awayTeam.name}
+                                  className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                />
+                              )}
+                              <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                {update.awayTeam?.name}
+                              </p>
+                            </div>
+                          </div>
                         )}
-                        {update.result && (
-                          <Badge
-                            className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${
+                        {update.matchResult && (
+                          <div
+                            className={`text-xs md:text-sm font-medium mb-2 ${
                               update.result === "won"
-                                ? "bg-green-500 text-white"
-                                : update.result === "lost"
-                                ? "bg-red-500 text-white"
-                                : "bg-gray-500 text-white"
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-primary"
                             }`}
                           >
-                            {update.result.toUpperCase()}
-                          </Badge>
+                            {update.matchResult}
+                          </div>
                         )}
-                      </div>
-                      <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
-                        {update.title}
-                      </h3>
-                      {(update.homeTeam || update.awayTeam) && (
-                        <div className="flex items-center justify-between mb-3 p-2 bg-secondary rounded">
-                          <div className="text-center flex-1">
-                            {update.homeTeam?.logoUrl && (
-                              <img
-                                src={update.homeTeam.logoUrl}
-                                alt={update.homeTeam.name}
-                                className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
-                              />
-                            )}
-                            <p className="text-[10px] md:text-xs font-medium line-clamp-1">
-                              {update.homeTeam?.name}
-                            </p>
-                          </div>
-                          <div className="px-3 font-bold text-muted-foreground text-xs md:text-sm">
-                            VS
-                          </div>
-                          <div className="text-center flex-1">
-                            {update.awayTeam?.logoUrl && (
-                              <img
-                                src={update.awayTeam.logoUrl}
-                                alt={update.awayTeam.name}
-                                className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
-                              />
-                            )}
-                            <p className="text-[10px] md:text-xs font-medium line-clamp-1">
-                              {update.awayTeam?.name}
-                            </p>
-                          </div>
+                        <div className="space-y-1 text-[10px] md:text-xs mb-3">
+                          {update.predictedOutcome && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Prediction:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {update.predictedOutcome}
+                              </span>
+                            </div>
+                          )}
+                          {update.confidenceLevel && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Confidence Level:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {update.confidenceLevel}%
+                              </span>
+                            </div>
+                          )}
+                          {update.result && (
+                            <div>
+                              <span className="text-muted-foreground">
+                                Result:{" "}
+                              </span>
+                              <span
+                                className={`font-medium capitalize ${
+                                  update.result === "won"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : update.result === "lost"
+                                    ? "text-red-500"
+                                    : ""
+                                }`}
+                              >
+                                {update.result}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      <p className="text-xs md:text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {update.summary || update.content}
-                      </p>
-                      <div className="flex items-center justify-between mb-3">
-                        {update.odds && (
-                          <div>
-                            <div className="text-lg md:text-xl font-bold text-primary">
-                              {update.odds}
+                        <p className="text-xs md:text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {update.summary || update.content}
+                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          {update.odds && (
+                            <div>
+                              <div className="text-lg md:text-xl font-bold text-primary">
+                                {Number(update.odds).toFixed(2)}
+                              </div>
+                              <div className="text-[10px] md:text-xs text-muted-foreground">
+                                Odds
+                              </div>
                             </div>
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              Odds
+                          )}
+                          {update.predictedOutcome && (
+                            <div className="text-right">
+                              <div className="text-xs md:text-sm font-bold line-clamp-1">
+                                {update.predictedOutcome}
+                              </div>
+                              <div className="text-[10px] md:text-xs text-muted-foreground">
+                                Prediction
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        {update.predictedOutcome && (
-                          <div className="text-right">
-                            <div className="text-xs md:text-sm font-bold line-clamp-1">
-                              {update.predictedOutcome}
-                            </div>
-                            <div className="text-[10px] md:text-xs text-muted-foreground">
-                              Prediction
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {update.ticketSnapshots.length > 0 && (
-                        <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
-                          📊 {update.ticketSnapshots.length} ticket snapshot(s)
+                          )}
                         </div>
-                      )}
-                      <Link href={`/tips/${update.id}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-[10px] md:text-xs"
-                        >
-                          <Target className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
-                          View Update
-                        </Button>
-                      </Link>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground mb-3 gap-2">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
+                            <span className="truncate">
+                              {new Date(
+                                update.matchDate || update.createdAt
+                              ).toLocaleString("en-NG", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                                timeZone: "UTC",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              })}
+                            </span>
+                          </div>
+                          {update.confidenceLevel && (
+                            <span className="truncate">
+                              Confidence Level:{update.confidenceLevel}
+                            </span>
+                          )}
+                        </div>
+                        {update.ticketSnapshots.length > 0 && (
+                          <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
+                            Ticket snapshots: {update.ticketSnapshots.length}
+                          </div>
+                        )}
+                        {update.result === "won" && (
+                          <div className="mb-3 flex justify-center">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 rounded-full">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Won
+                            </span>
+                          </div>
+                        )}
+                        <Link href={`/tips/${update.id}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-[10px] md:text-xs"
+                          >
+                            <Target className="h-3 w-3 md:h-4 md:w-4 mr-1.5 md:mr-2" />
+                            View Update
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {vipUpdates.length > itemsPerPage && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPageUpdates(
+                          Math.max(1, currentPageUpdates - 1)
+                        )
+                      }
+                      disabled={currentPageUpdates === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {currentPageUpdates} of{" "}
+                      {Math.ceil(vipUpdates.length / itemsPerPage)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPageUpdates(
+                          Math.min(
+                            Math.ceil(vipUpdates.length / itemsPerPage),
+                            currentPageUpdates + 1
+                          )
+                        )
+                      }
+                      disabled={
+                        currentPageUpdates ===
+                        Math.ceil(vipUpdates.length / itemsPerPage)
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -689,36 +1040,17 @@ export default function VIPAreaPage() {
               {historyPredictions.length > 0 && (
                 <div className="mb-6">
                   <h3 className="font-bold text-base mb-4">Past VIP Tips</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {historyPredictions.map((prediction) => (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    {displayedHistoryPredictions.map((prediction) => (
                       <Card
                         key={prediction.id}
-                        className="border-2 border-border"
+                        className={`border-2 ${
+                          prediction.result === "won"
+                            ? "border-emerald-500"
+                            : "border-border"
+                        }`}
                       >
                         <CardContent className="p-4">
-                          <div className="flex items-center gap-1.5 md:gap-2 mb-2 flex-wrap">
-                            <Badge className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                              {prediction.sport}
-                            </Badge>
-                            {prediction.league && (
-                              <Badge className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                                {prediction.league}
-                              </Badge>
-                            )}
-                            {prediction.result && (
-                              <Badge
-                                className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${
-                                  prediction.result === "won"
-                                    ? "bg-green-500 text-white"
-                                    : prediction.result === "lost"
-                                    ? "bg-red-500 text-white"
-                                    : "bg-gray-500 text-white"
-                                }`}
-                              >
-                                {prediction.result.toUpperCase()}
-                              </Badge>
-                            )}
-                          </div>
                           <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
                             {prediction.title}
                           </h3>
@@ -753,6 +1085,131 @@ export default function VIPAreaPage() {
                               </div>
                             </div>
                           )}
+                          {prediction.matchResult && (
+                            <div
+                              className={`text-xs md:text-sm font-medium mb-2 ${
+                                prediction.result === "won"
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : "text-primary"
+                              }`}
+                            >
+                              {prediction.matchResult}
+                            </div>
+                          )}
+                          <div className="space-y-1 text-[10px] md:text-xs mb-3">
+                            {prediction.predictedOutcome && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Prediction:{" "}
+                                </span>
+                                <span className="font-medium">
+                                  {prediction.predictedOutcome}
+                                </span>
+                              </div>
+                            )}
+                            {prediction.confidenceLevel && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Confidence Level:{" "}
+                                </span>
+                                <span className="font-medium">
+                                  {prediction.confidenceLevel}%
+                                </span>
+                              </div>
+                            )}
+                            {prediction.result && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Result:{" "}
+                                </span>
+                                <span
+                                  className={`font-medium capitalize ${
+                                    prediction.result === "won"
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : prediction.result === "lost"
+                                      ? "text-red-500"
+                                      : ""
+                                  }`}
+                                >
+                                  {prediction.result}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground mb-3 gap-2">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
+                              <span className="truncate">
+                                {new Date(
+                                  prediction.matchDate || prediction.createdAt
+                                ).toLocaleString("en-NG", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  timeZone: "UTC",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })}
+                              </span>
+                            </div>
+                            {prediction.confidenceLevel && (
+                              <span className="truncate">
+                                Confidence Level:{prediction.confidenceLevel}
+                              </span>
+                            )}
+                          </div>
+                          {prediction.ticketSnapshots.length > 0 && (
+                            <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
+                              Ticket snapshots:{" "}
+                              {prediction.ticketSnapshots.length}
+                            </div>
+                          )}
+                          {prediction.tipResult && (
+                            <details className="mb-3">
+                              <summary className="text-[10px] md:text-xs font-medium cursor-pointer text-primary hover:text-primary/80">
+                                Tip Result Details
+                              </summary>
+                              <div className="mt-1 space-y-1 text-[10px] md:text-xs pl-2 border-l-2 border-primary/20">
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Settled At:{" "}
+                                  </span>
+                                  <span className="font-medium">
+                                    {new Date(
+                                      prediction.tipResult.settledAt
+                                    ).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Outcome:{" "}
+                                  </span>
+                                  <span className="font-medium capitalize">
+                                    {prediction.tipResult.outcome}
+                                  </span>
+                                </div>
+                                {prediction.tipResult.payout && (
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Payout:{" "}
+                                    </span>
+                                    <span className="font-medium">
+                                      €{prediction.tipResult.payout}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
+                          {prediction.result === "won" && (
+                            <div className="mb-3 flex justify-center">
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 rounded-full">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Won
+                              </span>
+                            </div>
+                          )}
                           <Link href={`/tips/${prediction.id}`}>
                             <Button
                               variant="outline"
@@ -766,39 +1223,219 @@ export default function VIPAreaPage() {
                       </Card>
                     ))}
                   </div>
+                  {historyPredictions.length > itemsPerPage && (
+                    <div className="flex items-center justify-center gap-2 mt-6">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPageHistoryPredictions(
+                            Math.max(1, currentPageHistoryPredictions - 1)
+                          )
+                        }
+                        disabled={currentPageHistoryPredictions === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {currentPageHistoryPredictions} of{" "}
+                        {Math.ceil(historyPredictions.length / itemsPerPage)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPageHistoryPredictions(
+                            Math.min(
+                              Math.ceil(
+                                historyPredictions.length / itemsPerPage
+                              ),
+                              currentPageHistoryPredictions + 1
+                            )
+                          )
+                        }
+                        disabled={
+                          currentPageHistoryPredictions ===
+                          Math.ceil(historyPredictions.length / itemsPerPage)
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
               {historyUpdates.length > 0 && (
                 <div>
                   <h3 className="font-bold text-base mb-4">Past VIP Updates</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {historyUpdates.map((update) => (
-                      <Card key={update.id} className="border-2 border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                    {displayedHistoryUpdates.map((update) => (
+                      <Card
+                        key={update.id}
+                        className={`border-2 ${
+                          update.result === "won"
+                            ? "border-emerald-500"
+                            : "border-border"
+                        }`}
+                      >
                         <CardContent className="p-4">
-                          <div className="flex items-center gap-1.5 md:gap-2 mb-2 flex-wrap">
-                            <Badge className="bg-purple-500 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                              UPDATE
-                            </Badge>
-                            <Badge className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                              {update.sport}
-                            </Badge>
-                            {update.result && (
-                              <Badge
-                                className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${
-                                  update.result === "won"
-                                    ? "bg-green-500 text-white"
-                                    : update.result === "lost"
-                                    ? "bg-red-500 text-white"
-                                    : "bg-gray-500 text-white"
-                                }`}
-                              >
-                                {update.result.toUpperCase()}
-                              </Badge>
-                            )}
-                          </div>
                           <h3 className="font-bold text-sm md:text-base mb-3 line-clamp-2">
                             {update.title}
                           </h3>
+                          {(update.homeTeam || update.awayTeam) && (
+                            <div className="flex items-center justify-between mb-3 p-2 bg-secondary rounded">
+                              <div className="text-center flex-1">
+                                {update.homeTeam?.logoUrl && (
+                                  <img
+                                    src={update.homeTeam.logoUrl}
+                                    alt={update.homeTeam.name}
+                                    className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                  />
+                                )}
+                                <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                  {update.homeTeam?.name}
+                                </p>
+                              </div>
+                              <div className="px-3 font-bold text-muted-foreground text-xs md:text-sm">
+                                VS
+                              </div>
+                              <div className="text-center flex-1">
+                                {update.awayTeam?.logoUrl && (
+                                  <img
+                                    src={update.awayTeam.logoUrl}
+                                    alt={update.awayTeam.name}
+                                    className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 object-contain"
+                                  />
+                                )}
+                                <p className="text-[10px] md:text-xs font-medium line-clamp-1">
+                                  {update.awayTeam?.name}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {update.matchResult && (
+                            <div
+                              className={`text-xs md:text-sm font-medium mb-2 ${
+                                update.result === "won"
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : "text-primary"
+                              }`}
+                            >
+                              {update.matchResult}
+                            </div>
+                          )}
+                          <div className="space-y-1 text-[10px] md:text-xs mb-3">
+                            {update.predictedOutcome && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Prediction:{" "}
+                                </span>
+                                <span className="font-medium">
+                                  {update.predictedOutcome}
+                                </span>
+                              </div>
+                            )}
+                            {update.confidenceLevel && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Confidence Level:{" "}
+                                </span>
+                                <span className="font-medium">
+                                  {update.confidenceLevel}%
+                                </span>
+                              </div>
+                            )}
+                            {update.result && (
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Result:{" "}
+                                </span>
+                                <span
+                                  className={`font-medium capitalize ${
+                                    update.result === "won"
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : update.result === "lost"
+                                      ? "text-red-500"
+                                      : ""
+                                  }`}
+                                >
+                                  {update.result}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] md:text-xs text-muted-foreground mb-3 gap-2">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <Calendar className="h-2.5 w-2.5 md:h-3 md:w-3 shrink-0" />
+                              <span className="truncate">
+                                {new Date(
+                                  update.matchDate || update.createdAt
+                                ).toLocaleString("en-NG", {
+                                  year: "numeric",
+                                  month: "short",
+                                  timeZone: "UTC",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            {update.confidenceLevel && (
+                              <span className="truncate">
+                                Confidence Level:{update.confidenceLevel}
+                              </span>
+                            )}
+                          </div>
+                          {update.ticketSnapshots.length > 0 && (
+                            <div className="mb-3 text-[10px] md:text-xs text-muted-foreground">
+                              Ticket snapshots: {update.ticketSnapshots.length}
+                            </div>
+                          )}
+                          {update.tipResult && (
+                            <details className="mb-3">
+                              <summary className="text-[10px] md:text-xs font-medium cursor-pointer text-primary hover:text-primary/80">
+                                Tip Result Details
+                              </summary>
+                              <div className="mt-1 space-y-1 text-[10px] md:text-xs pl-2 border-l-2 border-primary/20">
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Settled At:{" "}
+                                  </span>
+                                  <span className="font-medium">
+                                    {new Date(
+                                      update.tipResult.settledAt
+                                    ).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Outcome:{" "}
+                                  </span>
+                                  <span className="font-medium capitalize">
+                                    {update.tipResult.outcome}
+                                  </span>
+                                </div>
+                                {update.tipResult.payout && (
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Payout:{" "}
+                                    </span>
+                                    <span className="font-medium">
+                                      €{update.tipResult.payout}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
+                          {update.result === "won" && (
+                            <div className="mb-3 flex justify-center">
+                              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 rounded-full">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Won
+                              </span>
+                            </div>
+                          )}
                           <Link href={`/tips/${update.id}`}>
                             <Button
                               variant="outline"
@@ -812,6 +1449,44 @@ export default function VIPAreaPage() {
                       </Card>
                     ))}
                   </div>
+                  {historyUpdates.length > itemsPerPage && (
+                    <div className="flex items-center justify-center gap-2 mt-6">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPageHistoryUpdates(
+                            Math.max(1, currentPageHistoryUpdates - 1)
+                          )
+                        }
+                        disabled={currentPageHistoryUpdates === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {currentPageHistoryUpdates} of{" "}
+                        {Math.ceil(historyUpdates.length / itemsPerPage)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setCurrentPageHistoryUpdates(
+                            Math.min(
+                              Math.ceil(historyUpdates.length / itemsPerPage),
+                              currentPageHistoryUpdates + 1
+                            )
+                          )
+                        }
+                        disabled={
+                          currentPageHistoryUpdates ===
+                          Math.ceil(historyUpdates.length / itemsPerPage)
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

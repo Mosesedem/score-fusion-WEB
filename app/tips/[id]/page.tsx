@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp,
   Lock,
@@ -18,7 +17,10 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  BicepsFlexed,
+  Lightbulb,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 interface Tip {
   id: string;
@@ -55,6 +57,14 @@ interface Tip {
   createdAt: string;
   authorName?: string;
   tags: string[];
+  matchResult?: string;
+  tipResult?: {
+    id: string;
+    settledAt: string;
+    outcome: string;
+    payout?: number;
+    createdAt: string;
+  };
 }
 
 export default function TipDetailPage() {
@@ -63,6 +73,8 @@ export default function TipDetailPage() {
   const [tip, setTip] = useState<Tip | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [vipLocked, setVipLocked] = useState(false);
+  const { user } = useAuth();
 
   const fetchTip = async () => {
     try {
@@ -70,6 +82,8 @@ export default function TipDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setTip(data.data.prediction);
+      } else if (res.status === 401 || res.status === 403) {
+        setVipLocked(true);
       } else if (res.status === 404) {
         router.push("/tips");
       }
@@ -113,6 +127,56 @@ export default function TipDetailPage() {
     );
   }
 
+  if (vipLocked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center">
+          <CardHeader className="pb-2 flex flex-col items-center">
+            <Lock className="h-8 w-8 md:h-10 md:w-10 text-primary mb-2" />
+            <CardTitle className="text-lg md:text-2xl">
+              VIP Access Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 md:space-y-6">
+            <p className="text-sm md:text-base text-muted-foreground">
+              This prediction is reserved for VIP members. Unlock full analysis,
+              ticket snapshots, and expert insights by upgrading your access.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Link href="/vip">
+                <Button size="sm" className="w-full sm:w-auto">
+                  View VIP Plans
+                </Button>
+              </Link>
+              {(!user || user.guest) && (
+                <Link href="/login">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                  >
+                    Log in
+                  </Button>
+                </Link>
+              )}
+            </div>
+            <div className="pt-2 border-t border-border mt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs md:text-sm"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                Go Back
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!tip) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -152,51 +216,59 @@ export default function TipDetailPage() {
       <section className="py-4 md:py-8">
         <div className="container mx-auto px-3 md:px-4">
           <div className="max-w-4xl mx-auto">
-            {/* Title and Badges */}
+            {/* Title and Info */}
             <div className="mb-4 md:mb-6">
-              <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                  {tip.sport}
-                </Badge>
-                {tip.league && (
-                  <Badge className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                    {tip.league}
-                  </Badge>
-                )}
-                {tip.isVIP && (
-                  <Badge className="bg-primary text-primary-foreground text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                    <Lock className="h-2 w-2 md:h-2.5 md:w-2.5 mr-0.5 md:mr-1" />
-                    VIP
-                  </Badge>
-                )}
-                {tip.featured && (
-                  <Badge className="bg-primary text-primary-foreground text-[10px] md:text-xs px-1.5 md:px-2 py-0.5">
-                    Featured
-                  </Badge>
-                )}
-                {tip.result && (
-                  <Badge
-                    className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${
-                      tip.result === "won"
-                        ? "bg-green-500 text-white"
-                        : tip.result === "lost"
-                        ? "bg-red-500 text-white"
-                        : "bg-gray-500 text-white"
-                    }`}
-                  >
-                    {getResultIcon()}
-                    <span className="ml-1">{tip.result.toUpperCase()}</span>
-                  </Badge>
-                )}
-              </div>
               <h1 className="text-xl md:text-3xl lg:text-4xl font-bold mb-2 md:mb-3">
                 {tip.title}
               </h1>
               {tip.summary && (
-                <p className="text-sm md:text-base lg:text-lg text-muted-foreground">
+                <p className="text-sm md:text-base lg:text-lg text-muted-foreground mb-3 md:mb-4">
                   {tip.summary}
                 </p>
               )}
+              <div className="space-y-1 text-xs md:text-sm">
+                {tip.predictedOutcome && (
+                  <div>
+                    <span className="text-muted-foreground">Prediction: </span>
+                    <span className="font-medium">{tip.predictedOutcome}</span>
+                  </div>
+                )}
+                {tip.confidenceLevel && (
+                  <div>
+                    <span className="text-muted-foreground">
+                      Confidence Level:{" "}
+                    </span>
+                    <span className="font-medium">{tip.confidenceLevel}%</span>
+                  </div>
+                )}
+                {tip.result && (
+                  <div className="flex items-center gap-1.5">
+                    {getResultIcon()}
+                    <div>
+                      <span className="text-muted-foreground">Result: </span>
+                      <span
+                        className={`font-medium capitalize ${
+                          tip.result === "won"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : tip.result === "lost"
+                            ? "text-red-500"
+                            : ""
+                        }`}
+                      >
+                        {tip.result}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {tip.isVIP && (
+                  <div>
+                    <span className="text-muted-foreground">Access: </span>
+                    <span className="font-medium text-primary">
+                      VIP Exclusive
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Team Match Display */}
@@ -240,10 +312,25 @@ export default function TipDetailPage() {
                       )}
                     </div>
                   </div>
+                  {tip.matchResult && (
+                    <div className="text-center text-sm md:text-base font-medium text-primary mt-2">
+                      {tip.matchResult}
+                    </div>
+                  )}
                   {tip.matchDate && (
                     <div className="flex items-center justify-center gap-1 mt-3 md:mt-4 text-xs md:text-sm text-muted-foreground">
                       <Calendar className="h-3 w-3 md:h-4 md:w-4" />
-                      <span>{new Date(tip.matchDate).toLocaleString()}</span>
+                      <span>
+                        {new Date(tip.matchDate).toLocaleString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          timeZone: "UTC",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
+                      </span>
                     </div>
                   )}
                 </CardContent>
@@ -255,8 +342,10 @@ export default function TipDetailPage() {
               {tip.odds && (
                 <Card>
                   <CardContent className="p-3 md:p-4 text-center">
+                    <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-primary mx-auto mb-1" />
                     <div className="text-xl md:text-2xl lg:text-3xl font-bold text-primary">
-                      {tip.odds}
+                      {/* {tip.odds} */}
+                      {Number(tip.odds).toFixed(2)}
                     </div>
                     <div className="text-[10px] md:text-xs text-muted-foreground mt-1">
                       Odds
@@ -264,27 +353,30 @@ export default function TipDetailPage() {
                   </CardContent>
                 </Card>
               )}
-              {tip.predictedOutcome && (
-                <Card>
-                  <CardContent className="p-3 md:p-4 text-center">
-                    <Target className="h-5 w-5 md:h-6 md:w-6 text-primary mx-auto mb-1" />
-                    <div className="text-xs md:text-sm font-bold line-clamp-1">
-                      {tip.predictedOutcome}
-                    </div>
-                    <div className="text-[10px] md:text-xs text-muted-foreground mt-0.5">
-                      Prediction
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
               {tip.confidenceLevel && (
                 <Card>
                   <CardContent className="p-3 md:p-4 text-center">
+                    <BicepsFlexed className="h-5 w-5 md:h-6 md:w-6 text-primary mx-auto mb-1" />
                     <div className="text-xl md:text-2xl lg:text-3xl font-bold text-primary">
                       {tip.confidenceLevel}%
                     </div>
                     <div className="text-[10px] md:text-xs text-muted-foreground mt-1">
                       Confidence
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {tip.predictedOutcome && (
+                <Card>
+                  <CardContent className="p-3 md:p-4 text-center">
+                    <Lightbulb className="h-5 w-5 md:h-6 md:w-6 text-primary mx-auto mb-1" />
+                    <div className="text-xl md:text-2xl lg:text-3xl font-bold text-primary">
+                      {/* {tip.odds} */}
+                      {tip.predictedOutcome}
+                    </div>
+                    <div className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                      Predicted
                     </div>
                   </CardContent>
                 </Card>
@@ -342,9 +434,9 @@ export default function TipDetailPage() {
                           className="w-full h-auto object-contain"
                         />
                         <div className="absolute top-2 right-2">
-                          <Badge className="bg-black/70 text-white text-[10px] md:text-xs">
+                          <div className="bg-black/70 text-white text-[10px] md:text-xs px-1.5 py-0.5 rounded">
                             {index + 1}/{tip.ticketSnapshots.length}
-                          </Badge>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -365,26 +457,34 @@ export default function TipDetailPage() {
               </CardHeader>
               <CardContent className="p-4 md:p-6 pt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 text-xs md:text-sm">
-                  {tip.authorName && (
+                  {tip.confidenceLevel && (
                     <div>
-                      <span className="text-muted-foreground">Analyst:</span>
-                      <span className="ml-2 font-medium">{tip.authorName}</span>
+                      <span className="text-muted-foreground">
+                        Confidence Level:
+                      </span>
+                      <span className="ml-2 font-medium">
+                        {tip.confidenceLevel}
+                      </span>
                     </div>
                   )}
                   <div>
                     <span className="text-muted-foreground">Published:</span>
                     <span className="ml-2 font-medium">
-                      {new Date(tip.createdAt).toLocaleDateString()}
+                      {new Date(tip.createdAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
                     </span>
                   </div>
-                  {tip.predictionType && (
+                  {/* {tip.predictionType && (
                     <div>
                       <span className="text-muted-foreground">Type:</span>
                       <span className="ml-2 font-medium capitalize">
                         {tip.predictionType.replace(/_/g, " ")}
                       </span>
                     </div>
-                  )}
+                  )} */}
                   {tip.successRate && (
                     <div>
                       <span className="text-muted-foreground">
@@ -395,20 +495,83 @@ export default function TipDetailPage() {
                       </span>
                     </div>
                   )}
+                  <div>
+                    <span className="text-muted-foreground">Sport:</span>
+                    <span className="ml-2 font-medium">{tip.sport}</span>
+                  </div>
+                  {tip.league && (
+                    <div>
+                      <span className="text-muted-foreground">League:</span>
+                      <span className="ml-2 font-medium">{tip.league}</span>
+                    </div>
+                  )}
+                  {tip.oddsSource && (
+                    <div>
+                      <span className="text-muted-foreground">
+                        Odds Source:
+                      </span>
+                      <span className="ml-2 font-medium capitalize">
+                        {tip.oddsSource}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2 font-medium capitalize">
+                      {tip.status}
+                    </span>
+                  </div>
+                  {tip.featured && (
+                    <div>
+                      <span className="text-muted-foreground">Featured:</span>
+                      <span className="ml-2 font-medium text-primary">Yes</span>
+                    </div>
+                  )}
                 </div>
+                {tip.tipResult && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h4 className="font-medium mb-2 text-sm md:text-base">
+                      Tip Result
+                    </h4>
+                    <div className="space-y-1 text-xs md:text-sm">
+                      <div>
+                        <span className="text-muted-foreground">
+                          Settled At:
+                        </span>
+                        <span className="ml-2 font-medium">
+                          {new Date(tip.tipResult.settledAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Outcome:</span>
+                        <span className="ml-2 font-medium capitalize">
+                          {tip.tipResult.outcome}
+                        </span>
+                      </div>
+                      {tip.tipResult.payout && (
+                        <div>
+                          <span className="text-muted-foreground">Payout:</span>
+                          <span className="ml-2 font-medium">
+                            €{tip.tipResult.payout}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {tip.tags && tip.tags.length > 0 && (
-                  <div className="mt-4">
+                  <div className="mt-4 pt-4 border-t border-border">
                     <span className="text-muted-foreground text-xs md:text-sm">
                       Tags:
                     </span>
                     <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2">
                       {tip.tags.map((tag, index) => (
-                        <Badge
+                        <div
                           key={index}
-                          className=" text-[10px] md:text-xs px-1.5 md:px-2 py-0.5"
+                          className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 bg-secondary text-secondary-foreground rounded"
                         >
                           {tag}
-                        </Badge>
+                        </div>
                       ))}
                     </div>
                   </div>

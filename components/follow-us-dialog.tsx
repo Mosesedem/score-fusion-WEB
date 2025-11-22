@@ -91,6 +91,24 @@ export function FollowUsDialog({ open, onOpenChange }: FollowUsDialogProps) {
               </p>
             </div>
           </a>
+          <a
+            href="mailto:scorefusionn@gmail.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 p-3 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition-colors"
+          >
+            <svg
+              className="h-6 w-6 text-[#ff9204]"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M22 6C22 5.44772 21.5523 5 21 5H3C2.44772 5 2 5.44772 2 6V18C2 18.5523 2.44772 19 3 19H21C21.5523 19 22 18.5523 22 18V6ZM20 7L12 13L4 7H20ZM20 17H4V8.5L12 14.5L20 8.5V17Z" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-semibold text-foreground">Email</p>
+              <p className="text-sm text-muted-foreground">Send us an email</p>
+            </div>
+          </a>
         </div>
 
         <p className="text-xs text-center text-muted-foreground">
