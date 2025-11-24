@@ -15,6 +15,8 @@ import {
   Target,
   Calendar,
   Loader2,
+  MessageSquare,
+  Mail,
 } from "lucide-react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
@@ -403,59 +405,71 @@ export default function VIPAreaPage() {
                 </div>
 
                 {user && (
-                  <div className="bg-secondary p-4 md:p-6 space-y-4">
-                    <div className="flex justify-between">
-                      <h3 className="font-bold text-base md:text-lg">
-                        Subscription Plans
+                  <div className="bg-secondary p-6 md:p-8 rounded-2xl space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-bold text-lg md:text-xl">
+                        Ready for VIP Access?
                       </h3>
                       <div
                         className="text-sm md:text-base text-muted-foreground hover:underline cursor-pointer"
                         onClick={() => router.push("/subscriptions")}
                       >
-                        See All Plans
+                        Learn More
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                      <div className="border-2 border-border p-3 md:p-4 space-y-2">
-                        <h4 className="font-bold text-sm md:text-base">
-                          Monthly
-                        </h4>
-                        <p className="text-xl md:text-2xl font-bold text-primary">
-                          € 100.00/week
+                    <div className="text-center space-y-6">
+                      <div className="space-y-3">
+                        <p className="text-base md:text-lg text-foreground">
+                          Unlock exclusive tips, correct scores, winning
+                          tickets, and join our private VIP Telegram group.
                         </p>
-                        <ul className="text-xs md:text-sm space-y-1">
-                          <li>✓ All VIP tips & updates</li>
-                          <li>✓ Correct score predictions</li>
-                          <li>✓ Priority support</li>
-                          <li>✓ Cancel anytime</li>
-                        </ul>
-                        <Button className="w-full mt-4 h-10 text-sm md:text-base">
-                          Subscribe Weekly
-                        </Button>
+                        <p className="text-sm text-muted-foreground">
+                          Instant activation • 24/7 support • Money-back
+                          guarantee
+                        </p>
                       </div>
-                      <div className="border-2 border-primary p-3 md:p-4 space-y-2">
-                        <div className="inline-block bg-primary text-primary-foreground text-xs px-2 py-1 mb-2">
-                          BEST VALUE
-                        </div>
-                        <h4 className="font-bold text-sm md:text-base">
-                          Monthly
-                        </h4>
-                        <p className="text-xl md:text-2xl font-bold text-primary">
-                          € 400.00/month
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Save € 400 per Month
-                        </p>
-                        <ul className="text-xs md:text-sm space-y-1">
-                          <li>✓ All VIP tips & updates</li>
-                          <li>✓ Correct score predictions</li>
-                          <li>✓ Priority support</li>
-                        </ul>
-                        <Button className="w-full mt-4 h-10 text-sm md:text-base">
-                          Subscribe Monthly
+                      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <Button
+                          size="lg"
+                          className="w-full sm:w-auto"
+                          onClick={() =>
+                            window.open(
+                              "https://wa.me/84589950720?text=Hi!%20I'd%20like%20to%20get%20VIP%20access.",
+                              "_blank"
+                            )
+                          }
+                        >
+                          <MessageSquare className="mr-2 h-5 w-5" />
+                          Contact via WhatsApp
                         </Button>
-                      </div>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="w-full sm:w-auto"
+                          onClick={() =>
+                            window.open("https://t.me/Donaldauthorr", "_blank")
+                          }
+                        >
+                          <MessageSquare className="mr-2 h-5 w-5" />
+                          Message on Telegram
+                        </Button>
+                      </div>{" "}
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        className="w-full sm:w-auto"
+                        onClick={() =>
+                          window.open("mailto:Scorefusionn@gmail.com", "_blank")
+                        }
+                      >
+                        <Mail className="mr-2 h-5 w-5" />
+                        Send an Email{" "}
+                      </Button>
+                      <p className="text-xs text-muted-foreground pt-4">
+                        We'll reply instantly with access details • Usually
+                        activated in minutes
+                      </p>
                     </div>
                   </div>
                 )}
