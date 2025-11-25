@@ -312,6 +312,11 @@ export default function HistoryPage() {
                                 Won
                               </div>
                             )}
+                            {tip.result === "lost" && (
+                              <div className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded">
+                                Lost
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
