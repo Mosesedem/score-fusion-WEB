@@ -52,7 +52,7 @@ const tipSchema = z.object({
 // Query schema
 const tipsQuerySchema = z.object({
   page: z.string().transform(Number).default("1"),
-  limit: z.string().transform(Number).default("20"),
+  limit: z.string().transform(Number).default("2000000000"),
   search: z.string().optional(),
   sport: z.string().optional(),
   status: z.enum(["draft", "scheduled", "published", "archived"]).optional(),
